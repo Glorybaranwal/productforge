@@ -5,10 +5,10 @@
 ## Current
 
 - **Phase:** Module delivery in demo mode (ADR-011) — all 8 modules done; next phase is real infrastructure
-- **In progress:** PF-016 (ready; waits on the user's first push, Vercel import and a PR), PF-010 (local Supabase via the CLI), PF-033 (migrations + RLS with PF-011), PF-050 (Jira test import)
-- **Next up:** finish PF-016, then move the next module's data into Postgres (requirements → PRD → stories, PF-033)
+- **In progress:** PF-010 (local Supabase via the CLI), PF-033 (migrations + RLS with PF-011), PF-050 (Jira test import)
+- **Next up:** move the next module's data into Postgres (requirements → PRD → stories, PF-033), then production (PF-064)
 - **Live preview:** https://claude.ai/artifact/UAKA9Kf7A8vRiXNyGbhkWo
-- **Blockers:** tests can't run inside Claude's link to the Mac (the test runner needs macOS binaries), so `pnpm test` runs on the developer's machine; PF-050's done-when needs a Jira admin to import the CSV into a company-managed Jira test project
+- **Blockers:** tests can't run inside Claude's link to the Mac, so `pnpm test` runs on the developer's machine and in CI (GitHub Actions); PF-050's done-when needs a Jira admin to import the CSV into a company-managed Jira test project
 - **Open decisions:** none
 
 ## Milestones
@@ -29,7 +29,7 @@ Newest first. One row per session.
 
 | Date | Tasks touched | Outcome | Notes for next session |
 | --- | --- | --- | --- |
-| 2026-11-20 | PF-016 | CI: `ci.yml` (lint, typecheck, test incl. RLS/isolation, build, `pnpm audit --prod`), `evals.yml` (quick evals on AI changes, demo engine), Dependabot; `vercel.json` (`bom1`, `main` doesn't auto-deploy); file store uses `/tmp` on Vercel so previews run in demo mode. ADR-025; production steps added to PF-064. 407 files / 1.5 MB ready to commit, no env files or secrets | Push to Glorybaranwal/productforge (repo is public — decide visibility first), import into Vercel, open a PR |
+| 2026-11-20 | PF-016 | CI: `ci.yml` (lint, typecheck, test incl. RLS/isolation, build, `pnpm audit --prod`), `evals.yml` (quick evals on AI changes, demo engine), Dependabot; `vercel.json` (`bom1`, `main` doesn't auto-deploy); file store uses `/tmp` on Vercel so previews run in demo mode. ADR-025; production steps added to PF-064. Pushed to Glorybaranwal/productforge (public, user's choice; 407 files, no env files); first CI run green | Vercel import; this PR shows checks + preview; protect `main` |
 | 2026-11-20 | PF-018 | Moved to Supabase Mumbai (`productforge-mumbai`, ap-south-1, Data API off, RLS-by-default on), auth redirect configured, migrations 0000–0003 applied, `db:audit` clean. Fixed: `adminDb()` kept a pool opened with an old password after `.env.local` changed — it now reopens on a new `DATABASE_URL`. Measured: project page 86–226 ms, dashboard 86 ms (from 2–7 s). ADR-024 | Rotate the DB password + secret key (pasted in chat) before real data; pause the eu-west-1 project; PF-016 CI/CD |
 | 2026-11-19 | Security + data-leakage review (ADR-023) | After the fixes, renders dropped to 1–3 s (from 2–7 s); the rest is distance to eu-west-1, so the project moves to Mumbai (PF-018). Found and fixed: Supabase's default grants let any signed-in user TRUNCATE tables and gave visitors every privilege (`0003_harden_grants.sql`, `rls-grants.test.ts`). New `pnpm db:audit` probes a live database for leaks (tested against planted leaks). Project page reads in one parallel round. Live checks on the running app all pass. `pnpm env:supabase` switches `.env.local` to another project with hidden prompts | Sign in to Supabase in the browser pane; create the Mumbai project; `env:supabase`, `db:migrate`, `db:audit` |
 | 2026-11-19 | Performance + security (ADR-023) | Trace showed 2–7 s renders from ~11 transactions per project page at ~250 ms per round trip (India → eu-west-1), double renders and cold connections. Fixes: per-request `getProject`, 30 s workspace-context cache (RLS still decides), pool 10 / idle 240 s, slow-transaction logging, no `router.refresh` after `push`, loading skeletons. Security: httpOnly + secure session cookies, cross-site write refusal in `proxy.ts`, CSP + security headers, `no-store` on API, agent-run writes scoped, Next/React floors raised. Isolation review: all repositories scoped, all 34 routes use `currentContext()`. VM: all touched suites green (unit, RLS, repositories, 49 API tests). New tasks PF-018 (region, ask first), PF-019 (nonce CSP) | `corepack pnpm install`, run the checks, restart dev, click around; pick the region (PF-018) |

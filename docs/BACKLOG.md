@@ -95,12 +95,13 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
     first-visit workspace are single transactions; one-statement `actAs`; per-request `currentContext()`.
     `tests/integration/db/repositories.test.ts` (7) runs the real services on PGlite under RLS. Real flow on the Mac
     (sign up → default workspace → create project → listed) confirmed by the user; closed at their request._
-- [~] **PF-016 — CI/CD** · Depends on: PF-001
+- [x] **PF-016 — CI/CD** · Depends on: PF-001
   - GitHub Actions: lint, typecheck, test on PRs; Vercel preview per PR; production on `main`.
   - **Done when:** a PR shows green checks and a preview URL.
   - _2026-11-20: CI (`ci.yml`: lint, typecheck, test, build + dependency audit), path-filtered quick evals (`evals.yml`),
     Dependabot, `vercel.json` (`bom1`, no auto-deploy from `main`), file store falls back to `/tmp` on Vercel. See
-    ADR-025. Waiting on: first push of the project to `Glorybaranwal/productforge`, Vercel project import, a PR._
+    ADR-025. Project pushed to `Glorybaranwal/productforge` (public); first CI run on `main` green (lint, typecheck,
+    test, build ~70 s; dependency audit clean). Closed by the PR that carries this note, once it shows checks + a preview._
 - [ ] **PF-017 — Auth emails for production** · Depends on: PF-013
   - Custom SMTP (Supabase's built-in email only reaches the project team, a few emails an hour) and branded
     magic-link template linking to `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email`, so a link
