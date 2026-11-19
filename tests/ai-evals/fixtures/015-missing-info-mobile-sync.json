@@ -1,0 +1,34 @@
+{
+  "id": "015",
+  "category": "missing_info",
+  "notes": "Refers to unnamed systems and data. Tests questions about integration details instead of assumptions.",
+  "project": {
+    "domain": "enterprise software",
+    "audience": "existing customers",
+    "teamSize": 6
+  },
+  "input": "We need the mobile app to sync with the system and show users their data. It should also send them alerts when something changes. Use the existing API.",
+  "expected": {
+    "requirements": [
+      "mobile app syncs with existing system",
+      "show users their data",
+      "alerts when data changes"
+    ],
+    "questionsAbout": [
+      "which system and API, and where its documentation is",
+      "what data users see",
+      "which changes trigger alerts",
+      "alert channel",
+      "how users sign in",
+      "iOS, Android or both"
+    ],
+    "conflicts": [],
+    "ambiguousTerms": [],
+    "mustNotInvent": [
+      "push notifications stated as explicit",
+      "a specific platform stated as explicit",
+      "offline mode",
+      "specific data types stated as explicit"
+    ]
+  }
+}

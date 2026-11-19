@@ -1,0 +1,48 @@
+{
+  "id": "018",
+  "category": "complex",
+  "notes": "Five actors, rules, NFRs and one hidden conflict (live policy lookup vs nightly batch). Tests depth and an open legal question.",
+  "project": {
+    "domain": "insurance",
+    "audience": "motor insurance policyholders and claims staff",
+    "teamSize": 10
+  },
+  "input": "Claims modernisation — workshop summary (v2)\n\nContext: Today motor claims are filed by phone and take 21 days on average to settle. Goal: settle simple claims in under 48 hours.\nActors: policyholder, claims handler, assessor, garage partner, fraud team.\n\n1. Policyholders file a claim in the mobile app: policy lookup, incident date/location, description, photos/video of damage, third-party details.\n2. Claims under ₹50,000 with no injury and no third party are 'simple' and go to auto-assessment: an AI damage estimate from photos, then a handler approves the payout.\n3. Everything else goes to a handler queue, prioritised by severity; handlers can request an assessor visit.\n4. Garage partners receive repair jobs, submit quotes and invoices through a partner portal.\n5. Fraud team gets a flag on claims matching risk rules (e.g. policy started < 30 days ago, repeated claims); flagged claims cannot be auto-approved.\n6. Policyholders see claim status and get notified at each stage (WhatsApp preferred).\n7. Payouts via bank transfer to the account on file.\n\nNFRs: available 24/7; documents encrypted at rest; full audit trail of every decision; must integrate with the existing policy admin system (SOAP API, nightly batch only).\n\nOpen: Legal hasn't confirmed whether an AI estimate can be used without a human looking at the photos.",
+  "expected": {
+    "requirements": [
+      "file a claim in the mobile app",
+      "upload photos and video of damage",
+      "classify simple claims under ₹50,000",
+      "AI damage estimate from photos",
+      "handler approves payout",
+      "handler queue prioritised by severity",
+      "request an assessor visit",
+      "garage partner portal for quotes and invoices",
+      "fraud risk flags",
+      "flagged claims cannot be auto-approved",
+      "claim status notifications at each stage",
+      "payout by bank transfer",
+      "audit trail of every decision",
+      "documents encrypted at rest",
+      "integrate with policy admin system"
+    ],
+    "questionsAbout": [
+      "legal approval for AI damage estimates",
+      "keeping policy data current with a nightly batch",
+      "WhatsApp consent and fallback channel",
+      "how severity is defined",
+      "who owns the fraud rules",
+      "what happens when the AI estimate and the garage quote differ"
+    ],
+    "conflicts": [
+      "policy lookup at claim time vs policy admin system updated only by nightly batch"
+    ],
+    "ambiguousTerms": ["available 24/7", "prioritised by severity"],
+    "mustNotInvent": [
+      "payout without human approval",
+      "SMS notifications stated as explicit",
+      "auto-assessment of injury claims",
+      "a specific uptime percentage stated as explicit"
+    ]
+  }
+}

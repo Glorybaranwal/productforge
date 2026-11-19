@@ -1,0 +1,37 @@
+{
+  "id": "012",
+  "category": "contradictory",
+  "notes": "Email thread with executive-level disagreements. Tests that conflicts become decisions to make, not silent picks.",
+  "project": {
+    "domain": "B2B SaaS",
+    "audience": "small teams and enterprise customers",
+    "teamSize": 5
+  },
+  "input": "Re: pricing page — collecting everyone's input\n\nCEO: The free plan must stay free forever with unlimited projects — that's our growth engine.\nCFO: Free users should be capped at 3 projects so they upgrade.\nCEO: Annual plans get 20% off.\nHead of Sales: Enterprise deals often need 30% off annual, so let's make the discount 30% for everyone.\nCFO: Users can cancel anytime and get a prorated refund.\nLegal: Annual plans are non-refundable after 14 days.",
+  "expected": {
+    "requirements": [
+      "free plan",
+      "paid plans with an upgrade path",
+      "annual plan discount",
+      "cancel anytime",
+      "refund policy"
+    ],
+    "questionsAbout": [
+      "free plan project limit",
+      "annual discount rate",
+      "refund policy for annual plans",
+      "who signs off pricing"
+    ],
+    "conflicts": [
+      "unlimited projects on the free plan vs a cap of 3 projects",
+      "20% annual discount vs 30% annual discount",
+      "prorated refund on cancellation vs annual plans non-refundable after 14 days"
+    ],
+    "ambiguousTerms": [],
+    "mustNotInvent": [
+      "specific prices stated as explicit",
+      "monthly plan discount",
+      "usage-based billing"
+    ]
+  }
+}

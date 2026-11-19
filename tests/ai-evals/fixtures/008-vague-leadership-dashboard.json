@@ -1,0 +1,41 @@
+{
+  "id": "008",
+  "category": "vague",
+  "notes": "Casual Slack message with a typo. Tests robustness to informal input and questions about data sources.",
+  "project": {
+    "domain": "internal tools",
+    "audience": "company leadership team",
+    "teamSize": 2
+  },
+  "input": "hey can we get a dashbaord for leadership? something that shows how the business is doing at a glance, real-time-ish, with the important KPIs. needs to look nice and be mobile friendly. should replace the monthly spreadsheet thing finance sends around",
+  "expected": {
+    "requirements": [
+      "leadership dashboard",
+      "show key KPIs",
+      "mobile friendly",
+      "replace monthly finance spreadsheet"
+    ],
+    "questionsAbout": [
+      "which KPIs",
+      "data sources",
+      "refresh frequency",
+      "who can access it",
+      "what the current spreadsheet contains"
+    ],
+    "conflicts": [],
+    "ambiguousTerms": [
+      "how the business is doing",
+      "at a glance",
+      "real-time-ish",
+      "important KPIs",
+      "look nice",
+      "mobile friendly"
+    ],
+    "mustNotInvent": [
+      "named KPIs (revenue, churn) stated as explicit",
+      "alerts",
+      "drill-down reports stated as explicit",
+      "a named BI tool"
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "id": "006",
+  "category": "vague",
+  "quick": true,
+  "notes": "Buzzword-heavy founder pitch. Tests ambiguity flags with measurable follow-up questions and no invented features.",
+  "project": {
+    "domain": "B2B SaaS",
+    "audience": "sales teams",
+    "teamSize": 3
+  },
+  "input": "We want a modern, AI-powered CRM that's super easy to use and really fast. It should help sales teams close more deals and integrate with everything. Ideally it scales to enterprise. Think Salesforce but better and way simpler.",
+  "expected": {
+    "requirements": ["CRM for sales teams", "AI-powered CRM", "integrate with other tools"],
+    "questionsAbout": [
+      "which AI features are meant",
+      "which integrations come first",
+      "a measurable target for fast",
+      "team size and what enterprise scale means",
+      "who the users are and what easy to use means",
+      "core CRM records such as contacts, deals and pipeline"
+    ],
+    "conflicts": [],
+    "ambiguousTerms": [
+      "modern",
+      "AI-powered",
+      "easy to use",
+      "really fast",
+      "integrate with everything",
+      "scales to enterprise",
+      "better",
+      "simpler"
+    ],
+    "mustNotInvent": [
+      "email sequences stated as explicit",
+      "named integrations stated as explicit",
+      "lead scoring stated as explicit",
+      "pricing tiers"
+    ]
+  }
+}

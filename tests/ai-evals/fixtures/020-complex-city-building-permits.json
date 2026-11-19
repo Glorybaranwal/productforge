@@ -1,0 +1,49 @@
+{
+  "id": "020",
+  "category": "complex",
+  "notes": "Multi-speaker transcript with explicit phasing. Tests scope discipline (phase 2 items stay out) and SLA rules.",
+  "project": {
+    "domain": "public sector",
+    "audience": "residents, contractors and city permit staff",
+    "teamSize": 9
+  },
+  "input": "City of Northvale — Online Permits (discovery call transcript, cleaned up)\n\nDirector: Residents and contractors apply for building permits online instead of in person. Phase 1 is residential building permits only; event and parking permits are phase 2, not now.\nPermit officer: An application needs site address (validated against the city's address register), owner details, contractor licence number, drawings as PDF, and the fee. Fees depend on project value — we use a fee table that changes every April.\nDirector: Applicants pay by card online. Fee waivers exist for registered charities; an officer must approve each waiver.\nPermit officer: We review in this order: completeness check (2 days), plan review (up to 15 days), then inspection scheduling. If something's missing, we send it back and the clock stops.\nIT: Must use the city's existing single sign-on for staff. Residents sign in with email. Everything must be in English and Spanish. We have to keep applications for 7 years.\nDirector: Applicants should always know where their application is and what's holding it up. Our goal is to cut average approval time from 45 days to 20.\nPermit officer: Inspectors book inspections in the field on tablets, record pass/fail with notes and photos.\nComms: Public dashboard showing number of permits issued per month by neighbourhood.",
+  "expected": {
+    "requirements": [
+      "online residential building permit application",
+      "validate site address against address register",
+      "contractor licence number",
+      "upload drawings as PDF",
+      "fee calculated from project value",
+      "online card payment",
+      "fee waiver for charities approved by an officer",
+      "completeness check",
+      "plan review",
+      "send back incomplete applications and stop the clock",
+      "inspection scheduling",
+      "single sign-on for staff",
+      "email sign-in for residents",
+      "English and Spanish",
+      "keep applications for 7 years",
+      "applicant sees application status",
+      "inspectors record pass or fail with notes and photos",
+      "public dashboard of permits per month by neighbourhood"
+    ],
+    "questionsAbout": [
+      "who updates the yearly fee table",
+      "how contractor licences are verified",
+      "rules for stopping and restarting the review clock",
+      "inspector tablet use without signal",
+      "accessibility standard for the public site",
+      "privacy of applicant data on the public dashboard"
+    ],
+    "conflicts": [],
+    "ambiguousTerms": [],
+    "mustNotInvent": [
+      "event permits in phase 1",
+      "parking permits in phase 1",
+      "payment by bank transfer or cheque stated as explicit",
+      "automatic approval of fee waivers"
+    ]
+  }
+}

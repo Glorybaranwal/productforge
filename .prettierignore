@@ -1,0 +1,11 @@
+.next
+out
+build
+coverage
+node_modules
+pnpm-lock.yaml
+next-env.d.ts
+tests/ai-evals/reports
+
+# Hand-written docs: keep their table layout as authored.
+*.md

@@ -1,0 +1,37 @@
+{
+  "id": "005",
+  "category": "normal",
+  "notes": "Two actors (customer, driver). Tests actor extraction and that the driver platform is not generalised.",
+  "project": {
+    "domain": "logistics",
+    "audience": "grocery customers and delivery drivers",
+    "teamSize": 7
+  },
+  "input": "Our drivers deliver groceries in same-day slots. We want customers to track their delivery live on a map from the moment the driver leaves the depot, see an ETA that updates, and get a push notification when the driver is 10 minutes away. Drivers use an Android app to mark each stop delivered and take a photo as proof of delivery. If nobody is home, the driver marks it failed with a reason and the customer can pick a new slot.",
+  "expected": {
+    "requirements": [
+      "live map tracking of the driver",
+      "ETA that updates",
+      "push notification when driver is 10 minutes away",
+      "driver marks stop delivered",
+      "photo proof of delivery",
+      "mark failed delivery with reason",
+      "customer picks a new slot after failed delivery"
+    ],
+    "questionsAbout": [
+      "customer app platforms",
+      "driver location privacy and when tracking stops",
+      "how the ETA is calculated",
+      "rules or fees for rebooking a slot",
+      "driver app use without signal"
+    ],
+    "conflicts": [],
+    "ambiguousTerms": [],
+    "mustNotInvent": [
+      "iOS driver app",
+      "signature capture",
+      "SMS notifications stated as explicit",
+      "route optimisation"
+    ]
+  }
+}

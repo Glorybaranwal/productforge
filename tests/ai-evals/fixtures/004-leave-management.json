@@ -1,0 +1,38 @@
+{
+  "id": "004",
+  "category": "normal",
+  "notes": "Bullet-list notes. Tests that each bullet becomes a requirement and that business rules are kept.",
+  "project": {
+    "domain": "HR",
+    "audience": "employees, managers and HR admins",
+    "teamSize": 4
+  },
+  "input": "Leave requests app – requirements from HR call:\n- employees submit leave (annual, sick, unpaid) with start/end date and optional note\n- manager gets notified and approves or rejects with a comment\n- balance shown before submitting; can't request more annual leave than balance\n- sick leave over 2 days needs a doctor's note upload\n- HR can export monthly leave report to Excel\n- public holidays per country shouldn't count as leave days",
+  "expected": {
+    "requirements": [
+      "submit leave request",
+      "annual, sick and unpaid leave types",
+      "notify manager",
+      "manager approves or rejects with comment",
+      "show leave balance before submitting",
+      "block annual leave above balance",
+      "doctor's note upload for sick leave over 2 days",
+      "monthly leave report export to Excel",
+      "exclude public holidays per country"
+    ],
+    "questionsAbout": [
+      "half-day leave",
+      "approval when the manager is away",
+      "notification channel",
+      "how balances accrue and carry over",
+      "which countries are supported"
+    ],
+    "conflicts": [],
+    "ambiguousTerms": [],
+    "mustNotInvent": [
+      "payroll integration",
+      "half-day leave stated as explicit",
+      "Slack notifications stated as explicit"
+    ]
+  }
+}

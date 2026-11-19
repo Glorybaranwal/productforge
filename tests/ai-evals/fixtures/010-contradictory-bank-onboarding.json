@@ -1,0 +1,34 @@
+{
+  "id": "010",
+  "category": "contradictory",
+  "quick": true,
+  "notes": "Three stakeholder conflicts, one of them regulatory. Tests conflict detection and attribution.",
+  "project": {
+    "domain": "fintech",
+    "audience": "new retail banking customers",
+    "teamSize": 8
+  },
+  "input": "Notes from onboarding kickoff (Mon)\nRahul (Product): Account opening must be fully digital — no branch visit, done in under 5 minutes.\nMeera (Compliance): Every new customer must complete video KYC with a live agent, which usually takes 10-15 minutes including the queue.\nRahul: We want to launch for anyone 16 and older.\nMeera: Accounts are only for adults, 18+.\nTech: We'll store ID document images for 30 days then delete them.\nMeera: Regulations need us to keep KYC records for 5 years.",
+  "expected": {
+    "requirements": [
+      "fully digital account opening",
+      "video KYC with a live agent",
+      "minimum age for account holders",
+      "store ID document images",
+      "retain KYC records"
+    ],
+    "questionsAbout": [
+      "which minimum age applies",
+      "how long ID images and KYC records are kept",
+      "whether the 5-minute target includes KYC queue time",
+      "which regulator and market apply"
+    ],
+    "conflicts": [
+      "account opening under 5 minutes vs video KYC taking 10-15 minutes",
+      "minimum age 16 vs adults only 18+",
+      "delete ID images after 30 days vs keep KYC records for 5 years"
+    ],
+    "ambiguousTerms": [],
+    "mustNotInvent": ["a named regulator stated as explicit", "branch onboarding", "joint accounts"]
+  }
+}

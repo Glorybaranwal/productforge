@@ -1,0 +1,38 @@
+{
+  "id": "003",
+  "category": "normal",
+  "notes": "Email-style input with concrete rules. Tests extraction of numeric constraints (30 days, 5 business days).",
+  "project": {
+    "domain": "e-commerce",
+    "audience": "online shoppers and customer support agents",
+    "teamSize": 6
+  },
+  "input": "Hi team,\n\nFor the returns portal: customers enter their order number and email, pick the items they want to return and a reason from a list, and get a prepaid return label as a PDF. Returns are only allowed within 30 days of delivery. Once the warehouse scans the parcel, the customer gets a refund to the original payment method within 5 business days and an email confirming it. Customer support needs to see the status of every return.\n\nThanks,\nPriya",
+  "expected": {
+    "requirements": [
+      "look up order by order number and email",
+      "select items to return",
+      "choose return reason from a list",
+      "prepaid return label as PDF",
+      "30-day return window",
+      "refund to original payment method within 5 business days",
+      "refund confirmation email",
+      "support view of return status"
+    ],
+    "questionsAbout": [
+      "partial refunds or restocking fees",
+      "items that cannot be returned",
+      "exchanges instead of refunds",
+      "the list of return reasons",
+      "international orders and carriers"
+    ],
+    "conflicts": [],
+    "ambiguousTerms": [],
+    "mustNotInvent": [
+      "exchanges stated as explicit",
+      "store credit",
+      "restocking fee stated as explicit",
+      "a named carrier stated as explicit"
+    ]
+  }
+}

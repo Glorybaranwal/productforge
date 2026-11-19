@@ -1,0 +1,38 @@
+{
+  "id": "013",
+  "category": "contradictory",
+  "notes": "One stakeholder contradicts themselves. Tests conflicts within a single speaker as well as across speakers.",
+  "project": {
+    "domain": "food ordering",
+    "audience": "local restaurant customers",
+    "teamSize": 2
+  },
+  "input": "Owner: Customers order on our website and pay online only — no cash, too much hassle. Delivery within 5 km. Also, half our regulars are older folks who always pay cash on delivery, so we must keep that. Orders open 11am–11pm.\nKitchen manager: We close the kitchen at 10pm, last orders must be 9:30.\nOwner: Our own staff deliver. Also we should list on the big delivery apps so their drivers handle it.",
+  "expected": {
+    "requirements": [
+      "order on the website",
+      "online payment",
+      "cash on delivery",
+      "5 km delivery radius",
+      "ordering hours",
+      "delivery by restaurant staff"
+    ],
+    "questionsAbout": [
+      "which payment methods are accepted",
+      "actual ordering hours",
+      "who handles delivery",
+      "delivery fee"
+    ],
+    "conflicts": [
+      "online payment only vs keep cash on delivery",
+      "orders open until 11pm vs last orders at 9:30pm",
+      "own staff deliver vs delivery app drivers"
+    ],
+    "ambiguousTerms": [],
+    "mustNotInvent": [
+      "loyalty programme",
+      "table reservations",
+      "a named delivery app stated as explicit"
+    ]
+  }
+}

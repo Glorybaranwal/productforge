@@ -1,0 +1,30 @@
+{
+  "id": "017",
+  "category": "missing_info",
+  "notes": "Familiar concept with every rule missing. Tests that common patterns are offered as assumptions, not facts.",
+  "project": {
+    "domain": "food and beverage retail",
+    "audience": "coffee chain customers",
+    "teamSize": 4
+  },
+  "input": "Add a loyalty program to our coffee chain app. Customers earn points and get rewards.",
+  "expected": {
+    "requirements": ["loyalty program in the app", "earn points", "redeem rewards"],
+    "questionsAbout": [
+      "how many points per purchase",
+      "which rewards and what they cost",
+      "points expiry",
+      "whether in-store purchases earn points",
+      "membership tiers",
+      "which stores take part"
+    ],
+    "conflicts": [],
+    "ambiguousTerms": [],
+    "mustNotInvent": [
+      "tiered membership stated as explicit",
+      "points expiry rule stated as explicit",
+      "a specific earning rate stated as explicit",
+      "birthday rewards"
+    ]
+  }
+}

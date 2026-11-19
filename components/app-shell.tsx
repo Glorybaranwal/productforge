@@ -1,0 +1,60 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
+type AppShellProps = {
+  workspaceName: string;
+  userName: string;
+  /** "demo": no sign-in (ADR-011); "supabase": signed in, with a sign-out button (PF-013). */
+  authMode: "demo" | "supabase";
+  children: ReactNode;
+};
+
+/** Signed-in chrome: product name, workspace, data-mode marker, user, sign-out. */
+export function AppShell({ workspaceName, userName, authMode, children }: AppShellProps) {
+  return (
+    <div className="min-h-screen bg-muted/40">
+      <header className="border-b bg-background">
+        <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4 sm:px-6">
+          <Link href="/dashboard" className="font-semibold tracking-tight">
+            ProductForge AI
+          </Link>
+          <span aria-hidden="true" className="text-muted-foreground">
+            /
+          </span>
+          <span className="truncate text-sm text-muted-foreground" data-testid="workspace-name">
+            {workspaceName}
+          </span>
+          <div className="ml-auto flex items-center gap-3">
+            {authMode === "demo" ? (
+              <Badge
+                variant="outline"
+                title="No sign-in or external services; data is stored locally (ADR-011)"
+              >
+                Demo mode
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                title="Signed in with Supabase; projects are still stored on this computer until they move to the database (PF-015)"
+              >
+                Local data
+              </Badge>
+            )}
+            <span className="hidden text-sm text-muted-foreground sm:inline">{userName}</span>
+            {authMode === "supabase" && (
+              <form action="/auth/signout" method="post">
+                <Button type="submit" variant="ghost" size="sm">
+                  Sign out
+                </Button>
+              </form>
+            )}
+          </div>
+        </div>
+      </header>
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">{children}</main>
+    </div>
+  );
+}

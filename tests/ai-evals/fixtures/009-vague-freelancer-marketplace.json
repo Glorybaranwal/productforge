@@ -1,0 +1,42 @@
+{
+  "id": "009",
+  "category": "vague",
+  "notes": "Two-sided marketplace with quality words instead of rules. Tests questions on trust, payments and MVP scope.",
+  "project": {
+    "domain": "marketplace",
+    "audience": "local freelancers and small businesses",
+    "teamSize": 5
+  },
+  "input": "We're building a marketplace connecting local freelancers with small businesses. It needs to be trustworthy and safe, have smooth payments, and good matching. We want it to feel premium but affordable. Launch ASAP.",
+  "expected": {
+    "requirements": [
+      "marketplace connecting freelancers and small businesses",
+      "payments between businesses and freelancers",
+      "matching freelancers to businesses"
+    ],
+    "questionsAbout": [
+      "how trust is established (verification, reviews)",
+      "payment flow and platform fees",
+      "matching criteria",
+      "launch date and MVP scope",
+      "freelancer categories and locations"
+    ],
+    "conflicts": [],
+    "ambiguousTerms": [
+      "trustworthy",
+      "safe",
+      "smooth payments",
+      "good matching",
+      "premium",
+      "affordable",
+      "ASAP",
+      "local"
+    ],
+    "mustNotInvent": [
+      "escrow stated as explicit",
+      "ratings and reviews stated as explicit",
+      "background checks",
+      "a specific commission percentage"
+    ]
+  }
+}

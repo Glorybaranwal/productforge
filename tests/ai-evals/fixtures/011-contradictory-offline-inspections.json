@@ -1,0 +1,37 @@
+{
+  "id": "011",
+  "category": "contradictory",
+  "notes": "Physically impossible combination in one paragraph. Tests that technical contradictions are flagged.",
+  "project": {
+    "domain": "construction",
+    "audience": "field inspectors and supervisors",
+    "teamSize": 5
+  },
+  "input": "Field inspectors need the inspection app to work fully offline in basements with no signal. All data must sync instantly to head office so supervisors see results the second an inspection is completed. Inspectors upload up to 50 high-res photos per inspection. The app must stay under 20 MB and never store data on the device for security reasons.",
+  "expected": {
+    "requirements": [
+      "inspection app works offline",
+      "sync inspections to head office",
+      "supervisors see completed inspections",
+      "up to 50 photos per inspection",
+      "app size under 20 MB"
+    ],
+    "questionsAbout": [
+      "acceptable sync delay",
+      "whether encrypted on-device storage is acceptable",
+      "photo resolution and compression",
+      "what happens when two people edit the same inspection"
+    ],
+    "conflicts": [
+      "works fully offline vs never stores data on the device",
+      "instant sync vs no signal in basements",
+      "50 high-res photos per inspection vs no on-device storage"
+    ],
+    "ambiguousTerms": [],
+    "mustNotInvent": [
+      "a named mobile platform stated as explicit",
+      "end-to-end encryption stated as explicit",
+      "GPS tagging"
+    ]
+  }
+}

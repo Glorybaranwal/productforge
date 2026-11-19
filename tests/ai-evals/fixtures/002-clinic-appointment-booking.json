@@ -1,0 +1,37 @@
+{
+  "id": "002",
+  "category": "normal",
+  "notes": "Clear, well-scoped brief. Tests full recall and that unstated compliance and payment details become questions, not facts.",
+  "project": {
+    "domain": "healthcare",
+    "audience": "patients and clinic front-desk staff",
+    "teamSize": 4
+  },
+  "input": "We need patients to book, reschedule and cancel appointments online with any of our 12 doctors across 3 clinics. Patients should get an SMS reminder 24 hours before their appointment. Front-desk staff need a daily schedule view per doctor and must be able to block time off. Cancellations less than 2 hours before the slot should be flagged as late cancellations.",
+  "expected": {
+    "requirements": [
+      "book appointment online",
+      "reschedule appointment",
+      "cancel appointment",
+      "SMS reminder 24 hours before",
+      "daily schedule view per doctor",
+      "block time off",
+      "flag late cancellations"
+    ],
+    "questionsAbout": [
+      "how patients sign in or verify identity",
+      "appointment slot length",
+      "whether a payment or deposit is taken at booking",
+      "health data privacy requirements",
+      "what happens after a late cancellation"
+    ],
+    "conflicts": [],
+    "ambiguousTerms": [],
+    "mustNotInvent": [
+      "video consultations",
+      "payment at booking stated as explicit",
+      "email reminders stated as explicit",
+      "a named regulation (HIPAA, GDPR) stated as explicit"
+    ]
+  }
+}

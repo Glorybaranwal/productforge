@@ -1,0 +1,30 @@
+{
+  "id": "016",
+  "category": "missing_info",
+  "notes": "Assumes shared knowledge of today's process. Tests questions about current reports and calculations.",
+  "project": {
+    "domain": "finance operations",
+    "audience": "finance team and report recipients",
+    "teamSize": 3
+  },
+  "input": "Finance wants automated reports instead of the manual ones. They should go out on schedule to the right people. Same numbers as today but without the manual work.",
+  "expected": {
+    "requirements": ["automated reports", "reports go out on schedule", "replace manual reports"],
+    "questionsAbout": [
+      "which reports and metrics",
+      "data sources",
+      "schedule frequency",
+      "recipients and access control",
+      "delivery format and channel",
+      "how today's numbers are calculated"
+    ],
+    "conflicts": [],
+    "ambiguousTerms": ["the right people"],
+    "mustNotInvent": [
+      "email delivery stated as explicit",
+      "PDF format stated as explicit",
+      "specific metrics stated as explicit",
+      "an interactive dashboard"
+    ]
+  }
+}

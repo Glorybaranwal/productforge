@@ -1,0 +1,54 @@
+# PF-016 / ADR-025: every pull request and every push to main runs these checks.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least privilege: the workflow only reads the code.
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels the run it replaces.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      # pnpm version comes from "packageManager" in package.json.
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      # Unit + integration, including the RLS, grants and data-isolation tests on PGlite (no secrets needed).
+      - run: pnpm test
+      # Catches production-only failures (server/client boundaries, config) before Vercel does.
+      - run: pnpm build
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      # Fails on known high or critical vulnerabilities in what ships to production.
+      - run: pnpm audit --prod --audit-level high

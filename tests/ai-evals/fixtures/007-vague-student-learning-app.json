@@ -1,0 +1,45 @@
+{
+  "id": "007",
+  "category": "vague",
+  "notes": "Vague goals plus an unstated child-privacy risk (all ages). Tests that the model asks about it.",
+  "project": {
+    "domain": "edtech",
+    "audience": "students and teachers",
+    "teamSize": 4
+  },
+  "input": "Need an app for students to learn better. Should be engaging and gamified, personalised to each student, and work for all ages. Teachers should be able to see how students are doing. Make it secure and accessible.",
+  "expected": {
+    "requirements": [
+      "learning app for students",
+      "gamified learning",
+      "personalised learning",
+      "teacher view of student progress"
+    ],
+    "questionsAbout": [
+      "subject or curriculum",
+      "target age range",
+      "children's data and parental consent",
+      "which progress measures teachers see",
+      "what personalisation adapts",
+      "web or mobile",
+      "which accessibility standard"
+    ],
+    "conflicts": [],
+    "ambiguousTerms": [
+      "learn better",
+      "engaging",
+      "gamified",
+      "personalised",
+      "all ages",
+      "how students are doing",
+      "secure",
+      "accessible"
+    ],
+    "mustNotInvent": [
+      "leaderboards stated as explicit",
+      "parent accounts",
+      "AI tutor chatbot",
+      "a named subject stated as explicit"
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "id": "014",
+  "category": "missing_info",
+  "quick": true,
+  "notes": "One-line request. Tests that the model asks rather than inventing a business type or features.",
+  "project": {
+    "domain": "services",
+    "audience": "customers",
+    "teamSize": 2
+  },
+  "input": "Build a booking system for our business.",
+  "expected": {
+    "requirements": ["booking system"],
+    "questionsAbout": [
+      "what kind of business and what is being booked",
+      "who makes bookings",
+      "availability and calendar rules",
+      "payment at booking",
+      "notifications and reminders",
+      "cancellation policy"
+    ],
+    "conflicts": [],
+    "ambiguousTerms": [],
+    "mustNotInvent": [
+      "online payments stated as explicit",
+      "calendar integration stated as explicit",
+      "a specific business type stated as explicit",
+      "SMS reminders"
+    ]
+  }
+}

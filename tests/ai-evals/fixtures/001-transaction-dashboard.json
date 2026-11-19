@@ -1,0 +1,34 @@
+{
+  "id": "001",
+  "category": "normal",
+  "quick": true,
+  "notes": "Short, clear request (the README example). Tests baseline recall and that unstated details (roles, channels, formats) become questions.",
+  "project": {
+    "domain": "fintech",
+    "audience": "retail banking customers",
+    "teamSize": 5
+  },
+  "input": "Build a transaction monitoring dashboard where customers can view transactions, filter them, download reports, and receive notifications for failed transactions.",
+  "expected": {
+    "requirements": [
+      "view transaction history",
+      "filter transactions",
+      "download reports",
+      "notify on failed transactions"
+    ],
+    "questionsAbout": [
+      "who can access the dashboard",
+      "notification channel (email or in-app)",
+      "which transaction states are supported",
+      "report format",
+      "filter fields"
+    ],
+    "conflicts": [],
+    "ambiguousTerms": [],
+    "mustNotInvent": [
+      "SMS notifications",
+      "specific report format stated as explicit",
+      "admin role stated as explicit"
+    ]
+  }
+}
