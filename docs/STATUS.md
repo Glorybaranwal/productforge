@@ -11,6 +11,8 @@
 - **Live preview:** https://claude.ai/artifact/UAKA9Kf7A8vRiXNyGbhkWo
 - **Blockers:** tests can't run inside Claude's link to the Mac, so `pnpm test` runs on the developer's machine and in CI (GitHub Actions); PF-050's done-when needs a Jira admin to import the CSV into a company-managed Jira test project
 - **Open decisions:** none
+- **Working agreement:** one git branch per module (the tracker's Module column, e.g. `m2-prd`), reused for every
+  task in that module until merged; Claude commits, the user pushes and merges. Keep replies and tool output lean.
 
 ## Milestones
 
