@@ -292,6 +292,10 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
     `git.deploymentEnabled.main = false` from `vercel.json`, branch protection on `main` (ADR-025).
 - [ ] **PF-065 — README + demo** · Depends on: PF-064
   - README with screenshots, architecture diagram, eval results; 3–5 min demo script and recording.
+- [ ] **PF-066 — Major dependency upgrades** · Depends on: PF-016
+  - vitest 4 → 5, postgres (driver) 3 → 4, @vitejs/plugin-react 5 → 6: Dependabot skips majors (ADR-025), so each is
+    upgraded on its own branch, with release notes read and CI green.
+  - **Done when:** all three are on their current major with `pnpm test`, `pnpm build` and `pnpm db:audit` passing.
 
 ---
 

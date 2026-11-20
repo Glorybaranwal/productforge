@@ -564,6 +564,11 @@ real data.
   PF-064 tracks it.
 **Why:** Every change is checked the same way before it lands, including the tenant-isolation guarantees, and reviewers
 get a clickable preview without any real data or secrets leaving the developer's machine.
+**Follow-ups (2026-11-20):** `main` is protected by a ruleset (pull request required, both CI checks must pass,
+no force pushes or deletion). Vercel project `productforge-l5ep` builds the repo; an older `productforge` project
+(created by the Supabase integration flow) was disconnected from Git. Dependabot's npm job failed on pnpm's minimum
+release age (`ERR_PNPM_NO_MATURE_MATCHING_VERSION`): it now waits 3 days before proposing a version and leaves major
+upgrades (vitest 5, postgres 4, @vitejs/plugin-react 6) to planned tasks.
 **Consequences:** Branch protection on `main` (require the CI checks) is set in GitHub by the repo owner. Preview data
 is throwaway. Turning production on means adding the Supabase variables to Vercel's Production environment, the
 production URL to Supabase's redirect URLs, and removing the `main: false` rule.
