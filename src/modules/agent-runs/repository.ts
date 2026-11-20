@@ -1,62 +1,41 @@
-import { readState, transact } from "@/src/db/store";
+import { dataBackend, type WorkspaceScope } from "@/src/db/scope";
 
-import type { AgentRun, IdempotencyRecord } from "./schema";
+import { pgAgentRuns } from "./pg-repository";
+import type { AgentRun, IdempotencyRecord, StageName } from "./schema";
+import { storeAgentRuns } from "./store-repository";
 
-export const agentRunRepository = {
-  async insert(run: AgentRun): Promise<AgentRun> {
-    return transact((state) => {
-      state.agentRuns.push(run);
-      return run;
-    });
-  },
-
-  /** Scoped by workspace like every other write, though the id is always server-generated. */
-  async update(
-    workspaceId: string,
-    id: string,
-    patch: Partial<AgentRun>,
-  ): Promise<AgentRun | null> {
-    return transact((state) => {
-      const run = state.agentRuns.find((r) => r.workspaceId === workspaceId && r.id === id);
-      if (!run) return null;
-      Object.assign(run, patch);
-      return { ...run };
-    });
-  },
-
-  async findById(workspaceId: string, id: string): Promise<AgentRun | null> {
-    const state = await readState();
-    return state.agentRuns.find((r) => r.workspaceId === workspaceId && r.id === id) ?? null;
-  },
-
-  async latestForProject(
-    workspaceId: string,
+/** The AI run log (CLAUDE.md §7) and idempotency records (§8), per workspace. */
+export interface AgentRunRepository {
+  /**
+   * Logs a run that is starting. Refused with CONFLICT while another run of the same stage is
+   * running for the project (ADR-027); a run abandoned for `STALE_RUN_MINUTES` is marked failed first.
+   */
+  insert(scope: WorkspaceScope, run: AgentRun): Promise<AgentRun>;
+  /** Finishes a running run. Finished runs never change: null for those, and for unknown ids. */
+  update(scope: WorkspaceScope, id: string, patch: Partial<AgentRun>): Promise<AgentRun | null>;
+  findById(scope: WorkspaceScope, id: string): Promise<AgentRun | null>;
+  latestForProject(
+    scope: WorkspaceScope,
     projectId: string,
-    stage: AgentRun["stage"],
-  ): Promise<AgentRun | null> {
-    const state = await readState();
-    const runs = state.agentRuns.filter(
-      (r) => r.workspaceId === workspaceId && r.projectId === projectId && r.stage === stage,
-    );
-    return runs.at(-1) ?? null;
-  },
-
-  async findIdempotent(
-    workspaceId: string,
-    scope: string,
+    stage: StageName,
+  ): Promise<AgentRun | null>;
+  findIdempotent(
+    scope: WorkspaceScope,
+    operation: string,
     key: string,
-  ): Promise<IdempotencyRecord | null> {
-    const state = await readState();
-    return (
-      state.idempotencyKeys.find(
-        (k) => k.workspaceId === workspaceId && k.scope === scope && k.key === key,
-      ) ?? null
-    );
-  },
+  ): Promise<IdempotencyRecord | null>;
+  /** Keeps the first record when two requests with the same key finish together. */
+  saveIdempotent(scope: WorkspaceScope, record: IdempotencyRecord): Promise<void>;
+}
 
-  async saveIdempotent(record: IdempotencyRecord): Promise<void> {
-    await transact((state) => {
-      state.idempotencyKeys.push(record);
-    });
-  },
+const postgres = () => dataBackend() === "postgres";
+
+/** Demo store or Postgres, chosen per call by `DATA_DRIVER` (ADR-022, ADR-027). */
+export const agentRunRepository: AgentRunRepository = {
+  insert: (...a) => (postgres() ? pgAgentRuns : storeAgentRuns).insert(...a),
+  update: (...a) => (postgres() ? pgAgentRuns : storeAgentRuns).update(...a),
+  findById: (...a) => (postgres() ? pgAgentRuns : storeAgentRuns).findById(...a),
+  latestForProject: (...a) => (postgres() ? pgAgentRuns : storeAgentRuns).latestForProject(...a),
+  findIdempotent: (...a) => (postgres() ? pgAgentRuns : storeAgentRuns).findIdempotent(...a),
+  saveIdempotent: (...a) => (postgres() ? pgAgentRuns : storeAgentRuns).saveIdempotent(...a),
 };

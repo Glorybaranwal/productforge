@@ -51,7 +51,8 @@ export async function runStage<I, O>(
   log("started", `Running ${stage.name} with ${llm.provider}/${llm.model}`);
   log("context", `Prepared ${prompt.length.toLocaleString("en")} characters of input`);
 
-  let run = await agentRunRepository.insert({
+  // Refused with CONFLICT while this stage is already running for the project (ADR-027).
+  let run = await agentRunRepository.insert(sc.ctx, {
     id: newId(),
     workspaceId: sc.ctx.workspace.id,
     projectId: sc.projectId,
@@ -83,7 +84,7 @@ export async function runStage<I, O>(
   const finish = async (status: "succeeded" | "failed", error: string | null) => {
     log(status, error ?? "Saved as drafts for review");
     run =
-      (await agentRunRepository.update(run.workspaceId, run.id, {
+      (await agentRunRepository.update(sc.ctx, run.id, {
         ...totals,
         status,
         error,

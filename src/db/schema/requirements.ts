@@ -6,6 +6,7 @@
  */
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   check,
   foreignKey,
   index,
@@ -32,6 +33,7 @@ import {
   REQUIREMENT_TYPES,
 } from "../../modules/requirements/schema";
 
+import { agentRuns } from "./agent-runs";
 import { createdAt, updatedAt } from "./columns";
 import { MANAGERS, memberOf, roleIn } from "./policies";
 import { projects } from "./projects";
@@ -43,6 +45,14 @@ export const artifactStatus = pgEnum("artifact_status", ARTIFACT_STATUS);
 export const artifactOrigin = pgEnum("artifact_origin", ORIGINS);
 export const questionState = pgEnum("question_state", QUESTION_STATES);
 export const discoveryStatus = pgEnum("discovery_status", ["draft", "confirmed"]);
+
+/** The run that wrote a row, in the row's own workspace (PF-071). */
+const runFk = (name: string, agentRunId: AnyPgColumn, workspaceId: AnyPgColumn) =>
+  foreignKey({
+    name,
+    columns: [agentRunId, workspaceId],
+    foreignColumns: [agentRuns.id, agentRuns.workspaceId],
+  });
 
 const ownerColumns = () => ({
   workspaceId: uuid("workspace_id")
@@ -66,7 +76,6 @@ export const requirements = pgTable(
     sourceId: text("source_id"),
     status: artifactStatus("status").notNull(),
     origin: artifactOrigin("origin").notNull(),
-    // Becomes a foreign key when agent runs move to Postgres (PF-071).
     agentRunId: uuid("agent_run_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -79,6 +88,7 @@ export const requirements = pgTable(
       columns: [t.projectId, t.workspaceId],
       foreignColumns: [projects.id, projects.workspaceId],
     }).onDelete("cascade"),
+    runFk("requirements_agent_run_fk", t.agentRunId, t.workspaceId),
     unique("requirements_project_code_version_key").on(t.projectId, t.code, t.version),
     index("requirements_project_idx").on(t.workspaceId, t.projectId),
     check("requirements_code_format", sql`${t.code} ~ '^N?FR-[0-9]{2,}$'`),
@@ -130,6 +140,7 @@ export const clarifyingQuestions = pgTable(
       columns: [t.projectId, t.workspaceId],
       foreignColumns: [projects.id, projects.workspaceId],
     }).onDelete("cascade"),
+    runFk("clarifying_questions_agent_run_fk", t.agentRunId, t.workspaceId),
     index("clarifying_questions_project_idx").on(t.workspaceId, t.projectId),
     pgPolicy("clarifying_questions_select_member", {
       for: "select",
@@ -184,6 +195,7 @@ export const discoveries = pgTable(
       columns: [t.projectId, t.workspaceId],
       foreignColumns: [projects.id, projects.workspaceId],
     }).onDelete("cascade"),
+    runFk("discoveries_agent_run_fk", t.agentRunId, t.workspaceId),
     check("discoveries_run_count_positive", sql`${t.runCount} > 0`),
     pgPolicy("discoveries_select_member", {
       for: "select",

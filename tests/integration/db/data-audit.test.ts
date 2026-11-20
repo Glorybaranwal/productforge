@@ -35,7 +35,7 @@ describe("data-isolation audit (ADR-023)", () => {
   it("finds nothing wrong with the real migrations", async () => {
     const report = await audit();
     expect(report.failures).toEqual([]);
-    expect(report.notes).toContain("checked 5 members across 8 tables");
+    expect(report.notes).toContain("checked 5 members across 10 tables");
   });
 
   it("catches a policy that lets everyone read projects", async () => {

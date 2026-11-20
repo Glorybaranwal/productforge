@@ -4,6 +4,14 @@ import { z } from "zod";
 export const STAGES = ["discovery", "prd", "story", "qa", "task", "impact"] as const;
 export type StageName = (typeof STAGES)[number];
 
+export const RUN_STATUSES = ["running", "succeeded", "failed"] as const;
+
+/**
+ * Only one run of a stage per project at a time (ADR-027). A run still "running" after this long
+ * was abandoned (the server stopped mid-run) and no longer blocks a new one.
+ */
+export const STALE_RUN_MINUTES = 10;
+
 export const RunEvent = z.object({
   at: z.iso.datetime(),
   step: z.enum([
@@ -29,7 +37,7 @@ export const AgentRun = z.object({
   provider: z.string(),
   model: z.string(),
   promptVersion: z.string(),
-  status: z.enum(["running", "succeeded", "failed"]),
+  status: z.enum(RUN_STATUSES),
   attempts: z.number().int().nonnegative(),
   tokensIn: z.number().int().nonnegative(),
   tokensOut: z.number().int().nonnegative(),

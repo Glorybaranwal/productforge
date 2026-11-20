@@ -320,9 +320,12 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - *2026-11-20:* code and tests done (ADR-026; PGlite `discovery-data.test.ts` 7/7). Migration 0004 applied to Mumbai;
     CI green on PR #4; clicked through on Mumbai: brief → discovery (12 requirements, 10 questions) → answer / assume /
     skip → Gate 1 (12 approved, survives reload) → PRD generated covering 12/12.
-- [ ] **PF-071 — AI run log and idempotency in Postgres** · Depends on: PF-070
+- [~] **PF-071 — AI run log and idempotency in Postgres** · Depends on: PF-070
   - `agent_runs`, `idempotency_records`; `agent_run_id` columns become foreign keys.
   - **Done when:** every stage run is logged in Postgres and a repeated `Idempotency-Key` returns the first result.
+  - *2026-11-20:* code and tests done (ADR-027; PGlite `agent-runs-data.test.ts` 8/8): run log, one running run per
+    stage, idempotency records, run foreign keys (`NOT VALID` for older rows). Left: CI on the PR, `db:migrate` on
+    Mumbai, a click-through.
 - [ ] **PF-072 — PRDs in Postgres** · Depends on: PF-070, PF-071
   - `prds` (versions, JSONB sections), approved versions immutable.
   - **Done when:** generate → edit → approve (Gate 2) works with `DATA_DRIVER=postgres`.
@@ -333,6 +336,7 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - **Done when:** sprint planning, Jira export and requirement changes work with `DATA_DRIVER=postgres`.
 - [ ] **PF-075 — Postgres-only mode** · Depends on: PF-074
   - With `DATA_DRIVER=postgres` nothing touches the file store; demo mode keeps it.
+  - Validate the `agent_run_id` foreign keys added `NOT VALID` in PF-071 (clear pre-PF-071 test data first).
   - **Done when:** the app runs with a read-only file system (unblocks PF-064).
 
 ## Later (not scheduled)

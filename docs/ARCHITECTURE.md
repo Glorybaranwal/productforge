@@ -46,7 +46,8 @@ export const discoveryStage: Stage<DiscoveryInput, DiscoveryOutput> = {
 ```
 
 Runner (`src/ai/orchestrator/run-stage.ts`):
-1. Create `agent_runs` row (`running`).
+1. Create `agent_runs` row (`running`). Refused with 409 while the same stage is already running for
+   the project; a run left `running` for 10 minutes counts as abandoned (ADR-027).
 2. `loadContext` → build prompt (system prompt + delimited untrusted input).
 3. `llm.generateStructured({ schema: outputSchema })`.
 4. Zod parse → business rules. On failure retry once with errors appended; then fail the run.
@@ -87,7 +88,8 @@ Common columns on generated entities: `id uuid`, `workspace_id`, `project_id`, `
 | sprint_items | project_id, story_code, sprint_number, position, pinned, reason (ADR-017) |
 | requirement_changes | project_id, number (CR-01), kind (modify/add/withdraw), requirement_code, from_version, to_version, before, after, reason, status, affected jsonb, impact jsonb, agent_run_id, decided_by, decided_at (ADR-018) |
 | impact_reviews | change_id, ref (PRD or story code), note, reviewed_by, reviewed_at |
-| agent_runs | stage, model, status, tokens_in, tokens_out, cost_usd, latency_ms, input_hash, error |
+| agent_runs | project_id, stage, provider, model, prompt_version, status, attempts, tokens_in, tokens_out, cost_usd, latency_ms, input_hash, error, events jsonb, created_by, finished_at. One `running` row per project + stage; never deleted (ADR-027) |
+| idempotency_records | workspace_id, operation, key, result_id, created_by (primary key: workspace + operation + key) |
 | audit_logs | actor_id, entity_type, entity_id, action, diff jsonb |
 
 Status values: `DRAFT`, `REVIEW`, `APPROVED`, `REJECTED`, `NEEDS_REVIEW`.

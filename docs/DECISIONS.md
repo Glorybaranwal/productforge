@@ -619,3 +619,32 @@ state untouched; the lock stops two runs from handing out the same codes.
 **Consequences:** `agent_run_id` on requirements becomes a foreign key in PF-071, when runs move to Postgres. Migration
 0004 has one statement moved by hand (the projects unique constraint before the foreign keys that need it), noted in
 its header; `db:generate` reports no drift. Modules after discovery still use the file store until PF-071–PF-074.
+
+### ADR-027 — AI run log and idempotency in Postgres (PF-071)
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request
+**Decision:**
+- **`agent_runs`** (migration `0005_run_log.sql`) holds every stage run: who started it, provider, model, prompt
+  version, attempts, tokens, cost, latency, input hash, error and the step events. Members read the log. A run is
+  inserted as `running` by the person starting it, and only they can finish it. Anyone in the workspace can
+  finish it once it has been running for 10 minutes (`STALE_RUN_MINUTES`), which marks it abandoned. Finished runs
+  never change, and signed-in users have no DELETE privilege on the table.
+- **One run of a stage per project at a time:** a partial unique index on `(workspace_id, project_id, stage)
+  where status = 'running'`. A second "Run discovery" from another tab or teammate gets 409 "already running"
+  instead of a second paid model call. The demo store applies the same rule in-process.
+- **`idempotency_records`** (workspace, operation, key → result id): a repeated `Idempotency-Key` returns the first
+  result. Rows are insert-only. `result_id` is text because operations return different things: a run id, a change
+  id, or a list of run ids for the backlog pipeline.
+- **Links:** `requirements`, `clarifying_questions` and `discoveries` point at their run through a foreign key on
+  `(agent_run_id, workspace_id)`, so a row can't point at another workspace's run. These keys are `NOT VALID`:
+  rows written before this migration point at runs that stayed in the demo store. New rows are checked now; PF-075
+  validates the old ones (or clears the test data first).
+- Repositories take the whole scope, as in ADR-026. The store and Postgres versions share the "already running"
+  message (`ALREADY_RUNNING`).
+**Why:** Cost and latency figures come from this log (the Performance and Cost tabs, PF-046, PF-062), so it has to
+be durable and tamper-resistant. A model call is the expensive step, so the database refuses a duplicate run before
+it starts rather than after it has been paid for. The client sends a new key per click, so idempotency alone
+doesn't stop two tabs or two people starting the same stage; the one-running-run rule does.
+**Consequences:** Two people proposing different requirement changes at the same moment wait for each other's impact
+analysis (same project, same stage); that's rare and the message says to retry. Idempotency records accumulate; a
+cleanup of records older than a day can come with PF-062. Runs from before PF-071 aren't in Postgres, so a project
+analysed before today shows no "last run" until it runs again.

@@ -107,8 +107,6 @@ export async function result(
   replayed: boolean,
 ): Promise<AnalysisResult> {
   const change = await find(ctx, id);
-  const run = change.agentRunId
-    ? await agentRunRepository.findById(ctx.workspace.id, change.agentRunId)
-    : null;
+  const run = change.agentRunId ? await agentRunRepository.findById(ctx, change.agentRunId) : null;
   return { changeId: change.id, code: changeCode(change.number), run, replayed };
 }

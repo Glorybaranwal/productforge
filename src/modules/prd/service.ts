@@ -87,7 +87,7 @@ async function loadBasics(ctx: WorkspaceContext, projectId: string) {
 
 export async function getPrdState(ctx: WorkspaceContext, projectId: string): Promise<PrdState> {
   const { gate1Passed, approved, versions, review } = await loadBasics(ctx, projectId);
-  const latestRun = await agentRunRepository.latestForProject(ctx.workspace.id, projectId, "prd");
+  const latestRun = await agentRunRepository.latestForProject(ctx, projectId, "prd");
   return {
     gate1Passed,
     versions,
@@ -132,7 +132,7 @@ export async function generatePrd(
     `prd:${projectId}`,
     idempotencyKey,
     () => runStage(prdStage, { ctx, projectId }, deps),
-    (id) => agentRunRepository.findById(ctx.workspace.id, id),
+    (id) => agentRunRepository.findById(ctx, id),
   );
   if (!replayed) {
     await recordAudit(ctx, {
