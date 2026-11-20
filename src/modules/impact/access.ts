@@ -28,7 +28,7 @@ export async function load(ctx: WorkspaceContext, projectId: string) {
   const [rows, plan, discovery] = await Promise.all([
     impactRepository.load(ws, projectId),
     sprintRepository.load(ws, projectId),
-    discoveryRepository.get(ws, projectId),
+    discoveryRepository.get(ctx, projectId),
   ]);
   return { b, rows, plan, gate1Passed: discovery?.status === "confirmed" };
 }

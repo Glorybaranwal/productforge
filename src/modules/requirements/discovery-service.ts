@@ -1,5 +1,6 @@
 import { runStage, type StageDeps } from "@/src/ai/orchestrator/run-stage";
 import { discoveryStage } from "@/src/ai/stages/discovery.stage";
+import { unitOfWork } from "@/src/db/scope";
 import { MANAGER_ROLES, requireRole } from "@/src/lib/auth";
 import { AppError } from "@/src/lib/errors";
 import { withIdempotency } from "@/src/lib/idempotency";
@@ -57,10 +58,10 @@ export async function getDiscoveryState(
   await getProject(ctx, projectId);
   const ws = ctx.workspace.id;
   const [sources, discovery, requirements, questions, latestRun] = await Promise.all([
-    sourceRepository.listByProject(ws, projectId),
-    discoveryRepository.get(ws, projectId),
-    requirementRepository.listByProject(ws, projectId),
-    questionRepository.listByProject(ws, projectId),
+    sourceRepository.listByProject(ctx, projectId),
+    discoveryRepository.get(ctx, projectId),
+    requirementRepository.listByProject(ctx, projectId),
+    questionRepository.listByProject(ctx, projectId),
     agentRunRepository.latestForProject(ws, projectId, "discovery"),
   ]);
   return {
@@ -93,11 +94,10 @@ export async function getDiscoveryStatus(
   ctx: WorkspaceContext,
   projectId: string,
 ): Promise<DiscoveryStatus> {
-  const ws = ctx.workspace.id;
   const [discovery, requirements, questions] = await Promise.all([
-    discoveryRepository.get(ws, projectId),
-    requirementRepository.listByProject(ws, projectId),
-    questionRepository.listByProject(ws, projectId),
+    discoveryRepository.get(ctx, projectId),
+    requirementRepository.listByProject(ctx, projectId),
+    questionRepository.listByProject(ctx, projectId),
   ]);
   return summarizeDiscovery(discovery, requirements, questions);
 }
@@ -111,7 +111,7 @@ export async function runDiscovery(
 ): Promise<{ run: AgentRun; replayed: boolean }> {
   requireRole(ctx.role, MANAGER_ROLES, "run discovery");
   await getProject(ctx, projectId);
-  const discovery = await discoveryRepository.get(ctx.workspace.id, projectId);
+  const discovery = await discoveryRepository.get(ctx, projectId);
   if (discovery?.status === "confirmed") {
     throw new AppError("CONFLICT", "Requirements are already confirmed; discovery can't be re-run");
   }
@@ -143,22 +143,21 @@ export async function confirmRequirements(
   if (state.blockers.length > 0)
     throw new AppError("CONFLICT", state.blockers.join(". "), state.blockers);
   const at = nowIso();
-  const approved = await requirementRepository.approveDrafts(
-    ctx.workspace.id,
-    projectId,
-    ctx.session.userId,
-    at,
-  );
-  await discoveryRepository.confirm(
-    { workspaceId: ctx.workspace.id, projectId },
-    ctx.session.name,
-    at,
-  );
-  await recordAudit(ctx, {
-    entityType: "project",
-    entityId: projectId,
-    action: "requirements.confirmed",
-    diff: { approved: { from: 0, to: approved } },
+  // Approving the drafts, confirming Gate 1 and its audit entry succeed or fail together (ADR-026).
+  await unitOfWork(ctx, async (ctx) => {
+    const approved = await requirementRepository.approveDrafts(
+      ctx,
+      projectId,
+      ctx.session.userId,
+      at,
+    );
+    await discoveryRepository.confirm(ctx, projectId, ctx.session.name, at);
+    await recordAudit(ctx, {
+      entityType: "project",
+      entityId: projectId,
+      action: "requirements.confirmed",
+      diff: { approved: { from: 0, to: approved } },
+    });
   });
   return getDiscoveryState(ctx, projectId);
 }

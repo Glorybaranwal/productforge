@@ -36,7 +36,7 @@ export async function getChangesOverview(
   projectId: string,
 ): Promise<ChangesOverview> {
   const { b, rows, plan, gate1Passed } = await load(ctx, projectId);
-  const current = await requirementRepository.listByProject(ctx.workspace.id, projectId);
+  const current = await requirementRepository.listByProject(ctx, projectId);
   const changes = buildChangeViews(rows, b, `/dashboard/projects/${projectId}`, (c) =>
     JSON.stringify(affectedOf(candidatesFor(c, b, plan))),
   );
@@ -90,7 +90,7 @@ export async function proposeChange(
           "CONFLICT",
           "Requirements aren't confirmed yet — edit them on the discovery page",
         );
-      const current = await requirementRepository.listByProject(ws, projectId);
+      const current = await requirementRepository.listByProject(ctx, projectId);
       let code: string | null = null;
       let fromVersion: number | null = null;
       let before: RequirementChange["before"] = null;

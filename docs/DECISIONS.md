@@ -525,6 +525,15 @@ transactions); production in the database's region costs milliseconds. PF-018 de
 (local Supabase) removes the latency for development. The CSP still allows inline scripts (Next.js needs them without
 nonces); PF-019 moves to a nonce-based CSP.
 
+**Follow-up (2026-11-20, PF-070):** database connections now use TLS. postgres.js connects unencrypted unless asked,
+and no URL carried `sslmode`, so traffic to Supabase had been plain text (the password itself never crosses the wire:
+Postgres signs in with SCRAM). The Mumbai project began refusing plain connections, which surfaced it. `sslFor(url)`
+in `src/db/ssl.mjs` gives `ssl: "require"` for every remote host (off only for a database on this machine) and is
+used by the app's pool and the `db:*` scripts; drizzle-kit gets `sslmode=require`. `require` encrypts but doesn't
+check the server's certificate; checking it against Supabase's CA is PF-067. `db:migrate` now runs drizzle-orm's
+migrator (`scripts/db-migrate.mjs`, same bookkeeping table) because `drizzle-kit migrate` exited without printing the
+database's error.
+
 ### ADR-024 — Hosting region: Mumbai (PF-018)
 **Status:** ACCEPTED · 2026-11-19 · decided by the user ("move it to Mumbai"), on Claude's recommendation
 **Decision:**
@@ -573,3 +582,34 @@ upgrades (vitest 5, postgres 4, @vitejs/plugin-react 6) to planned tasks.
 is throwaway. Turning production on means adding the Supabase variables to Vercel's Production environment, the
 production URL to Supabase's redirect URLs, and removing the `main: false` rule.
 
+
+### ADR-026 — Discovery data in Postgres (PF-070)
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request
+**Decision:**
+- **Tables** (migration `0004_discovery_data.sql`): `source_documents`, `requirements` (one row per version),
+  `clarifying_questions` and `discoveries` (one summary row per project). Every row carries `workspace_id`, and a
+  composite foreign key `(project_id, workspace_id) → projects(id, workspace_id)` means a row can't point at a project
+  in another workspace, even if a bug writes the wrong workspace id.
+- **RLS states the product rules, so a service bug can't skip them:**
+  - Requirements: members read, add drafts and edit drafts. Only owners, admins and PMs can write a row as `APPROVED`.
+    Nobody can update an approved row; a change is a new version (unique `project_id, code, version`).
+  - Only owners, admins and PMs delete requirements, and only AI drafts (what a discovery re-run replaces).
+  - Questions: members answer; owners/admins/PMs create them and delete open ones. Summary: members read,
+    owners/admins/PMs write.
+  - Sources: members add (as themselves) and remove. Text is capped at 50,000 characters in the database too.
+- **A discovery run is one transaction** under a per-project advisory lock. It removes untouched AI drafts and inserts
+  the new ones with the next free codes (edited and approved rows stay; codes are never reused), replaces the open
+  questions, and upserts the summary with `run_count + 1`. Gate 1 (approve every draft, confirm the summary, write
+  the audit entry) is one unit of work.
+- **Repositories take the whole scope** (`WorkspaceScope`: session, workspace, optional transaction) instead of a
+  workspace id, so the Postgres versions run as the signed-in user inside the caller's transaction. Store and
+  Postgres versions sit behind the same facades (ADR-022).
+- `discoveries.confirmed_by` keeps the confirming person's display name, as the screen shows it; the user id is in the
+  audit log.
+- `db:audit` now finds the tables to probe itself: `workspaces` plus every public table with a `workspace_id` column.
+**Why:** Discovery is the first stage, and every PRD line and story traces back to a requirement, so its rules have to
+hold in the database before the later modules move. One transaction per run means a failed run leaves the previous
+state untouched; the lock stops two runs from handing out the same codes.
+**Consequences:** `agent_run_id` on requirements becomes a foreign key in PF-071, when runs move to Postgres. Migration
+0004 has one statement moved by hand (the projects unique constraint before the foreign keys that need it), noted in
+its header; `db:generate` reports no drift. Modules after discovery still use the file store until PF-071–PF-074.

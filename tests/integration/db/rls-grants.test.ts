@@ -40,7 +40,11 @@ describe("table privileges (ADR-023)", () => {
     const write = ["DELETE", "INSERT", "SELECT", "UPDATE"];
     expect(await privileges("authenticated")).toEqual({
       audit_logs: ["INSERT", "SELECT"],
+      clarifying_questions: write,
+      discoveries: write,
       projects: write,
+      requirements: write,
+      source_documents: write,
       workspace_members: write,
       workspaces: write,
     });

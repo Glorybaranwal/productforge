@@ -67,14 +67,14 @@ export const discoveryStage: Stage<DiscoveryInput, DiscoveryOutput> = {
 
   async loadContext({ ctx, projectId }) {
     const project = await getProject(ctx, projectId);
-    const sources = await sourceRepository.listByProject(ctx.workspace.id, projectId);
+    const sources = await sourceRepository.listByProject(ctx, projectId);
     if (sources.length === 0) {
       throw new AppError(
         "VALIDATION_ERROR",
         "Add at least one source (notes or a document) before running discovery",
       );
     }
-    const questions = await questionRepository.listByProject(ctx.workspace.id, projectId);
+    const questions = await questionRepository.listByProject(ctx, projectId);
     return {
       project: {
         name: project.name,
@@ -122,10 +122,6 @@ export const discoveryStage: Stage<DiscoveryInput, DiscoveryOutput> = {
   businessRules: discoveryRules,
 
   async persist(output, _input, { ctx, projectId }, run) {
-    await discoveryRepository.applyRun(
-      { workspaceId: ctx.workspace.id, projectId },
-      output,
-      run.id,
-    );
+    await discoveryRepository.applyRun(ctx, projectId, output, run.id);
   },
 };

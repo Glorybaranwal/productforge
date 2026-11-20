@@ -1,28 +1,20 @@
-import { readState, transact } from "@/src/db/store";
+import { dataBackend, type WorkspaceScope } from "@/src/db/scope";
 
+import { pgSources } from "./pg-repository";
 import type { SourceDocument } from "./schema";
+import { storeSources } from "./store-repository";
 
-export const sourceRepository = {
-  async listByProject(workspaceId: string, projectId: string): Promise<SourceDocument[]> {
-    const state = await readState();
-    return state.sources.filter((s) => s.workspaceId === workspaceId && s.projectId === projectId);
-  },
+export interface SourceRepository {
+  listByProject(scope: WorkspaceScope, projectId: string): Promise<SourceDocument[]>;
+  insert(scope: WorkspaceScope, source: SourceDocument): Promise<SourceDocument>;
+  remove(scope: WorkspaceScope, projectId: string, id: string): Promise<boolean>;
+}
 
-  async insert(source: SourceDocument): Promise<SourceDocument> {
-    return transact((state) => {
-      state.sources.push(source);
-      return source;
-    });
-  },
+const pick = (): SourceRepository => (dataBackend() === "postgres" ? pgSources : storeSources);
 
-  async remove(workspaceId: string, projectId: string, id: string): Promise<boolean> {
-    return transact((state) => {
-      const index = state.sources.findIndex(
-        (s) => s.workspaceId === workspaceId && s.projectId === projectId && s.id === id,
-      );
-      if (index === -1) return false;
-      state.sources.splice(index, 1);
-      return true;
-    });
-  },
+/** Demo store or Postgres, chosen per call by `DATA_DRIVER` (ADR-022, ADR-026). */
+export const sourceRepository: SourceRepository = {
+  listByProject: (...a) => pick().listByProject(...a),
+  insert: (...a) => pick().insert(...a),
+  remove: (...a) => pick().remove(...a),
 };

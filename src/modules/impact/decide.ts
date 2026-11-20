@@ -30,7 +30,7 @@ export async function approveChange(
   const cr = changeCode(change.number);
   const { b, plan } = await load(ctx, change.projectId);
   if (change.kind !== "add") {
-    const r = (await requirementRepository.listByProject(ctx.workspace.id, change.projectId)).find(
+    const r = (await requirementRepository.listByProject(ctx, change.projectId)).find(
       (x) => x.code === change.requirementCode,
     );
     if (!r || r.version !== change.fromVersion || r.status !== "APPROVED")
@@ -42,7 +42,7 @@ export async function approveChange(
   const now = nowIso();
   const snapshot = (change.after ?? change.before)!;
   const withdraw = change.kind === "withdraw";
-  const version = await requirementRepository.insertVersion({
+  const version = await requirementRepository.insertVersion(ctx, {
     id: newId(),
     workspaceId: ctx.workspace.id,
     projectId: change.projectId,

@@ -13,7 +13,7 @@ export async function listSources(
   projectId: string,
 ): Promise<SourceDocument[]> {
   await getProject(ctx, projectId);
-  return sourceRepository.listByProject(ctx.workspace.id, projectId);
+  return sourceRepository.listByProject(ctx, projectId);
 }
 
 /** Adds pasted notes or an uploaded text file to the project. Text is stored as untrusted data. */
@@ -24,7 +24,7 @@ export async function addSource(
 ): Promise<SourceDocument> {
   await getProject(ctx, projectId);
   const data = parseOrThrow(SourceInput, input);
-  const source = await sourceRepository.insert({
+  const source = await sourceRepository.insert(ctx, {
     id: newId(),
     workspaceId: ctx.workspace.id,
     projectId,
@@ -50,17 +50,17 @@ export async function deleteSource(
   sourceId: string,
 ): Promise<void> {
   await getProject(ctx, projectId);
-  const discovery = await discoveryRepository.get(ctx.workspace.id, projectId);
+  const discovery = await discoveryRepository.get(ctx, projectId);
   if (discovery?.status === "confirmed") {
     throw new AppError(
       "CONFLICT",
       "Sources can't be removed after requirements are confirmed — they're the evidence",
     );
   }
-  const sources = await sourceRepository.listByProject(ctx.workspace.id, projectId);
+  const sources = await sourceRepository.listByProject(ctx, projectId);
   const source = sources.find((s) => s.id === sourceId);
   if (!source) throw new AppError("NOT_FOUND", "Source not found");
-  await sourceRepository.remove(ctx.workspace.id, projectId, sourceId);
+  await sourceRepository.remove(ctx, projectId, sourceId);
   await recordAudit(ctx, {
     entityType: "project",
     entityId: projectId,
