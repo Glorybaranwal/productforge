@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { dataBackend } from "@/src/db/scope";
 import { AppError } from "@/src/lib/errors";
 import { authDriver } from "@/src/lib/supabase/config";
 import { currentContext } from "@/src/modules/workspaces/service";
@@ -21,6 +22,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       workspaceName={ctx.workspace.name}
       userName={ctx.session.name}
       authMode={authDriver()}
+      dataBackend={dataBackend()}
     >
       {children}
     </AppShell>
