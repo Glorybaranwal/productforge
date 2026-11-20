@@ -166,3 +166,6 @@ export function traceabilityProblems(content: PrdContent, approvedCodes: string[
       : []),
   ];
 }
+
+/** Refusal when a second draft would open (ADR-028): there is one open draft per project. */
+export const DRAFT_OPEN = "A draft of this PRD is already open — keep editing that one";

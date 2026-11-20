@@ -648,3 +648,23 @@ doesn't stop two tabs or two people starting the same stage; the one-running-run
 analysis (same project, same stage); that's rare and the message says to retry. Idempotency records accumulate; a
 cleanup of records older than a day can come with PF-062. Runs from before PF-071 aren't in Postgres, so a project
 analysed before today shows no "last run" until it runs again.
+
+### ADR-028 — PRDs in Postgres (PF-072)
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request
+**Decision:**
+- **`prds`** (migration `0006_prds.sql`): one row per version, with the whole PRD as one JSONB document (sections are
+  always read and saved together, and the Zod schema validates them). Composite foreign keys tie a version to its
+  project and its run in the same workspace.
+- **RLS:** members read. Members insert new versions, as drafts and as themselves, and edit drafts. Only owners,
+  admins and PMs can save a version as APPROVED (Gate 2). Nobody can change an approved version (ADR-006), and
+  signed-in users have no DELETE privilege.
+- **One open draft per project:** a partial unique index on `(workspace_id, project_id) where status = 'DRAFT'`.
+  Generating fills the open draft, "edit as n+1" returns it, and a second draft is refused with CONFLICT (the demo
+  store applies the same rule). Version numbers come from `max(version) + 1` under the project lock, with a
+  unique `(project_id, version)` as backstop.
+- Approving and its audit entry are one unit of work. `approved_by` keeps the approver's name, as the screen shows
+  it; the user id is in the audit log.
+**Why:** Gate 2 is a promise that the approved PRD is what stories are built from, so the database itself has to
+keep it frozen. Two drafts open at once would split edits between them and make "the latest version" ambiguous.
+**Consequences:** PRDs written before today stay in the demo file; a project generates its PRD again after the
+switch. Stories still read the PRD from Postgres and keep their own data in the file store until PF-073.

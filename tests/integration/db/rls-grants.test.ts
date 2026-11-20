@@ -45,6 +45,8 @@ describe("table privileges (ADR-023)", () => {
       clarifying_questions: write,
       discoveries: write,
       idempotency_records: ["INSERT", "SELECT"],
+      // A PRD version is never deleted (ADR-028).
+      prds: ["INSERT", "SELECT", "UPDATE"],
       projects: write,
       requirements: write,
       source_documents: write,

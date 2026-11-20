@@ -99,7 +99,7 @@ export async function loadBacklog(
   const project = await getProject(ctx, projectId);
   const ws = ctx.workspace.id;
   const [versions, requirements, rows, changes] = await Promise.all([
-    prdRepository.listByProject(ws, projectId),
+    prdRepository.listByProject(ctx, projectId),
     requirementRepository.listByProject(ctx, projectId),
     backlogRepository.load(ws, projectId),
     impactRepository.load(ws, projectId),

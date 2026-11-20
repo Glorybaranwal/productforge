@@ -114,11 +114,11 @@ export const prdStage: Stage<PrdInput, PrdContent> = {
 
   /** Regenerating replaces the open draft; after approval it starts the next version. */
   async persist(output, _input, { ctx, projectId }, run) {
-    const versions = await prdRepository.listByProject(ctx.workspace.id, projectId);
+    const versions = await prdRepository.listByProject(ctx, projectId);
     const latest = versions.at(-1);
     const now = nowIso();
     if (latest?.status === "DRAFT") {
-      await prdRepository.updateDraft(ctx.workspace.id, latest.id, {
+      await prdRepository.updateDraft(ctx, latest.id, {
         content: output,
         origin: "ai",
         agentRunId: run.id,
@@ -126,7 +126,7 @@ export const prdStage: Stage<PrdInput, PrdContent> = {
       });
       return;
     }
-    await prdRepository.insertVersion({
+    await prdRepository.insertVersion(ctx, {
       id: newId(),
       workspaceId: ctx.workspace.id,
       projectId,

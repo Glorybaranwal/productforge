@@ -2,6 +2,7 @@ import { runStage, type StageDeps } from "@/src/ai/orchestrator/run-stage";
 import { prdStage } from "@/src/ai/stages/prd.stage";
 import { MANAGER_ROLES, requireRole } from "@/src/lib/auth";
 import { AppError, parseOrThrow } from "@/src/lib/errors";
+import { unitOfWork } from "@/src/db/scope";
 import { withIdempotency } from "@/src/lib/idempotency";
 import { newId, nowIso } from "@/src/lib/ids";
 import { agentRunRepository } from "@/src/modules/agent-runs/repository";
@@ -73,7 +74,7 @@ async function loadBasics(ctx: WorkspaceContext, projectId: string) {
   const [discovery, requirements, versions, changes] = await Promise.all([
     discoveryRepository.get(ctx, projectId),
     requirementRepository.listByProject(ctx, projectId),
-    prdRepository.listByProject(ws, projectId),
+    prdRepository.listByProject(ctx, projectId),
     impactRepository.load(ws, projectId),
   ]);
   const approvedPrd = [...versions].reverse().find((v) => v.status === "APPROVED") ?? null;
@@ -109,7 +110,7 @@ export async function getPrdStatus(ctx: WorkspaceContext, projectId: string): Pr
 }
 
 async function findPrd(ctx: WorkspaceContext, id: string): Promise<Prd> {
-  const prd = await prdRepository.findById(ctx.workspace.id, id);
+  const prd = await prdRepository.findById(ctx, id);
   if (!prd) throw new AppError("NOT_FOUND", "PRD not found");
   return prd;
 }
@@ -160,7 +161,7 @@ export async function updatePrdSection(
     );
   }
   if (JSON.stringify(current.content[section]) === JSON.stringify(value)) return current;
-  const updated = await prdRepository.updateDraft(ctx.workspace.id, id, {
+  const updated = await prdRepository.updateDraft(ctx, id, {
     content: { ...current.content, [section]: value },
     origin: current.origin === "human" ? "human" : "ai_edited",
     updatedAt: nowIso(),
@@ -179,7 +180,7 @@ export async function updatePrdSection(
 export async function approvePrd(ctx: WorkspaceContext, id: string): Promise<Prd> {
   requireRole(ctx.role, MANAGER_ROLES, "approve the PRD");
   const prd = await findPrd(ctx, id);
-  const versions = await prdRepository.listByProject(ctx.workspace.id, prd.projectId);
+  const versions = await prdRepository.listByProject(ctx, prd.projectId);
   if (versions.at(-1)?.id !== prd.id)
     throw new AppError("CONFLICT", "Only the latest version can be approved");
   const approvedCodes = (await requirementRepository.listByProject(ctx, prd.projectId))
@@ -188,33 +189,36 @@ export async function approvePrd(ctx: WorkspaceContext, id: string): Promise<Prd
   const blockers = prdBlockers(prd, approvedCodes);
   if (blockers.length) throw new AppError("CONFLICT", blockers.join(". "), blockers);
 
-  const at = nowIso();
-  const approved = await prdRepository.updateDraft(ctx.workspace.id, id, {
-    status: "APPROVED",
-    approvedBy: ctx.session.name,
-    approvedAt: at,
-    updatedAt: at,
+  // Approval and its audit entry are saved together or not at all.
+  return unitOfWork(ctx, async (ctx) => {
+    const at = nowIso();
+    const approved = await prdRepository.updateDraft(ctx, id, {
+      status: "APPROVED",
+      approvedBy: ctx.session.name,
+      approvedAt: at,
+      updatedAt: at,
+    });
+    if (!approved) throw new AppError("CONFLICT", "This version can no longer be approved");
+    await recordAudit(ctx, {
+      entityType: "project",
+      entityId: prd.projectId,
+      action: "prd.approved",
+      diff: { version: { from: null, to: prd.version } },
+    });
+    return approved;
   });
-  if (!approved) throw new AppError("CONFLICT", "This version can no longer be approved");
-  await recordAudit(ctx, {
-    entityType: "project",
-    entityId: prd.projectId,
-    action: "prd.approved",
-    diff: { version: { from: null, to: prd.version } },
-  });
-  return approved;
 }
 
 /** Editing after approval: copy the approved version into version n+1 (the approved one stays intact). */
 export async function startNewVersion(ctx: WorkspaceContext, id: string): Promise<Prd> {
   const prd = await findPrd(ctx, id);
-  const versions = await prdRepository.listByProject(ctx.workspace.id, prd.projectId);
+  const versions = await prdRepository.listByProject(ctx, prd.projectId);
   const latest = versions.at(-1)!;
   if (latest.status === "DRAFT") return latest; // a draft is already open: keep working on it
   if (prd.status !== "APPROVED")
     throw new AppError("CONFLICT", "Only an approved version can be copied");
   const now = nowIso();
-  const draft = await prdRepository.insertVersion({
+  const draft = await prdRepository.insertVersion(ctx, {
     id: newId(),
     workspaceId: ctx.workspace.id,
     projectId: prd.projectId,
