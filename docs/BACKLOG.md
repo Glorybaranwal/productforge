@@ -183,7 +183,7 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - Approve freezes version n; editing after approval creates n+1; side-by-side compare.
   - **Done when:** v1 stays intact after editing an approved PRD; audit log records both.
   - _2026-11-19 (Module 3): Gate 2 blocked until every approved requirement is covered and no link is unknown; approved versions are frozen (PATCH → 409); "Edit as version n+1" copies them into a new draft; compare view diffs any two versions by section; Copy as Markdown. Audit: `prd.generated`, `prd.updated`, `prd.approved`, `prd.version_created`. See ADR-013._
-- [~] **PF-033 — Epics & stories tables** · Depends on: PF-011
+- [x] **PF-033 — Epics & stories tables** · Depends on: PF-011
   - `epics`, `user_stories` (versioned), `story_requirements`, `story_dependencies`.
   - **Done when:** migrations + RLS + repository tests pass.
   - _2026-11-19 (Module 4): demo-store collections `epics`, `stories` (append-only versions per code), `criteria`, `tasks`; links stored as codes (`FR-01`, `US-001`) until the Drizzle join tables land with PF-011/PF-012. Covered by `tests/integration/api/backlog.test.ts`._
@@ -332,11 +332,13 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - **Done when:** generate → edit → approve (Gate 2) works with `DATA_DRIVER=postgres`.
   - *2026-11-20:* code and tests done (ADR-028; PGlite `prd-data.test.ts` 7/7). Checked on Mumbai in Chrome: generate
     → edit (ai_edited) → approve → edit refused (409) → v2 from v1, asking again returns the same draft.
-- [~] **PF-073 — Backlog in Postgres** · Depends on: PF-072 (absorbs PF-033)
+- [x] **PF-073 — Backlog in Postgres** · Depends on: PF-072 (absorbs PF-033)
   - `epics`, `stories` (versioned), `story_requirements`, `story_dependencies`, `acceptance_criteria`, `tasks`.
   - **Done when:** backlog generation, review (Gate 3) and traceability work with `DATA_DRIVER=postgres`.
   - *2026-11-20:* code and tests done (ADR-029; PGlite `backlog-data.test.ts` 8/8). Requirement and story links
-    stay code arrays instead of join tables. Left: CI, `db:migrate` on Mumbai, a click-through; then PF-033 closes too.
+    stay code arrays instead of join tables. Checked on Mumbai in Chrome: generate (9 stories, 25 criteria,
+    35 tasks) → approve 9 (Gate 3 passed) → editing an approved story refused (409) → v2 copies its criteria and
+    tasks → traceability 98. First page after a restart hit CONNECT_TIMEOUT again: the connection now retries once.
 - [ ] **PF-074 — Sprints, exports and change requests in Postgres** · Depends on: PF-073
   - **Done when:** sprint planning, Jira export and requirement changes work with `DATA_DRIVER=postgres`.
 - [ ] **PF-075 — Postgres-only mode** · Depends on: PF-074
