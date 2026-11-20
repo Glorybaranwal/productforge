@@ -209,7 +209,7 @@ export function storyStage(options: StoryStageOptions = {}): Stage<StoryInput, S
 
     async persist(output, input, { ctx, projectId }, run) {
       const ws = ctx.workspace.id;
-      const rows = await backlogRepository.load(ws, projectId);
+      const rows = await backlogRepository.load(ctx, projectId);
       const now = nowIso();
       const epicIds = new Map(rows.epics.map((e) => [e.code, e.id]));
       const epics: Epic[] = output.epics.map((e) => {
@@ -230,7 +230,7 @@ export function storyStage(options: StoryStageOptions = {}): Stage<StoryInput, S
           updatedAt: now,
         };
       });
-      if (epics.length) await backlogRepository.insert({ epics });
+      if (epics.length) await backlogRepository.insert(ctx, { epics });
 
       if (input.target) {
         const s = output.stories[0]!;
@@ -239,7 +239,7 @@ export function storyStage(options: StoryStageOptions = {}): Stage<StoryInput, S
         );
         if (!target)
           throw new AppError("CONFLICT", "The story changed while it was being regenerated");
-        await backlogRepository.resetStory(ws, target.id, ["DRAFT", "REJECTED"], {
+        await backlogRepository.resetStory(ctx, target.id, ["DRAFT", "REJECTED"], {
           epicId: epicIds.get(s.epicCode) ?? target.epicId,
           title: s.title,
           asA: s.asA,
@@ -261,7 +261,7 @@ export function storyStage(options: StoryStageOptions = {}): Stage<StoryInput, S
         return;
       }
 
-      await backlogRepository.insert({
+      await backlogRepository.insert(ctx, {
         stories: output.stories.map((s) => ({
           id: newId(),
           workspaceId: ws,

@@ -1,7 +1,8 @@
-import type { DbState } from "@/src/db/state";
-import { readState, transact } from "@/src/db/store";
+import { dataBackend, type WorkspaceScope } from "@/src/db/scope";
 
+import { pgBacklog } from "./pg-repository";
 import type { AcceptanceCriterion, Epic, Story, TechnicalTask } from "./schema";
+import { storeBacklog } from "./store-repository";
 
 export type BacklogRows = {
   epics: Epic[];
@@ -13,132 +14,58 @@ export type BacklogRows = {
 
 type Status = Story["status"];
 
-const inProject =
-  (workspaceId: string, projectId: string) => (r: { workspaceId: string; projectId: string }) =>
-    r.workspaceId === workspaceId && r.projectId === projectId;
-
-const byPosition = (a: { position: number }, b: { position: number }) => a.position - b.position;
-
-function select(state: DbState, workspaceId: string, projectId: string): BacklogRows {
-  const mine = inProject(workspaceId, projectId);
-  return {
-    epics: state.epics.filter(mine).sort((a, b) => a.code.localeCompare(b.code)),
-    stories: state.stories.filter(mine),
-    criteria: state.criteria.filter(mine).sort(byPosition),
-    tasks: state.tasks.filter(mine).sort(byPosition),
-  };
-}
-
 /**
- * Epics, stories, acceptance criteria and technical tasks (PF-033). Every query is scoped by
- * workspace, mirroring RLS. Approved stories and their children are never changed: the update
- * methods take the statuses they may act on and return null otherwise (ADR-006).
+ * Epics, stories, acceptance criteria and technical tasks (PF-033, PF-073). Approved stories and
+ * their children are never changed: the update methods take the statuses they may act on and
+ * return null otherwise (ADR-006, ADR-029).
  */
-export const backlogRepository = {
-  async load(workspaceId: string, projectId: string): Promise<BacklogRows> {
-    return select(await readState(), workspaceId, projectId);
-  },
-
-  async findStory(workspaceId: string, id: string): Promise<Story | null> {
-    const state = await readState();
-    return state.stories.find((s) => s.workspaceId === workspaceId && s.id === id) ?? null;
-  },
-
-  async insert(rows: Partial<BacklogRows>): Promise<void> {
-    await transact((state) => {
-      state.epics.push(...(rows.epics ?? []));
-      state.stories.push(...(rows.stories ?? []));
-      state.criteria.push(...(rows.criteria ?? []));
-      state.tasks.push(...(rows.tasks ?? []));
-    });
-  },
-
+export interface BacklogRepository {
+  load(scope: WorkspaceScope, projectId: string): Promise<BacklogRows>;
+  findStory(scope: WorkspaceScope, id: string): Promise<Story | null>;
+  /** Inserts rows of any kind together (all or nothing). */
+  insert(scope: WorkspaceScope, rows: Partial<BacklogRows>): Promise<void>;
   /** Updates a story whose status is in `allowed`; null if missing or not allowed. */
-  async updateStory(
-    workspaceId: string,
+  updateStory(
+    scope: WorkspaceScope,
     id: string,
     allowed: Status[],
     patch: Partial<Story>,
-  ): Promise<Story | null> {
-    return transact((state) => {
-      const row = state.stories.find((s) => s.workspaceId === workspaceId && s.id === id);
-      if (!row || !allowed.includes(row.status)) return null;
-      Object.assign(row, patch);
-      return { ...row };
-    });
-  },
-
-  /**
-   * Replaces a draft story's criteria and/or tasks in one write. Returns false (and changes
-   * nothing) unless the story is a DRAFT.
-   */
-  async replaceChildren(
-    workspaceId: string,
+  ): Promise<Story | null>;
+  /** Replaces a DRAFT story's criteria and/or tasks in one write; false (no change) otherwise. */
+  replaceChildren(
+    scope: WorkspaceScope,
     storyId: string,
     children: { criteria?: AcceptanceCriterion[]; tasks?: TechnicalTask[] },
-    storyPatch: Partial<Story> = {},
-  ): Promise<boolean> {
-    return transact((state) => {
-      const story = state.stories.find((s) => s.workspaceId === workspaceId && s.id === storyId);
-      if (!story || story.status !== "DRAFT") return false;
-      if (children.criteria) {
-        state.criteria = state.criteria.filter((c) => c.storyId !== storyId);
-        state.criteria.push(...children.criteria);
-      }
-      if (children.tasks) {
-        state.tasks = state.tasks.filter((t) => t.storyId !== storyId);
-        state.tasks.push(...children.tasks);
-      }
-      Object.assign(story, storyPatch);
-      return true;
-    });
-  },
-
-  /**
-   * Moves a story and its criteria and tasks to a new status together (approve, reject,
-   * restore). Only acts when the story's current status is in `from`.
-   */
-  async setStatus(
-    workspaceId: string,
+    storyPatch?: Partial<Story>,
+  ): Promise<boolean>;
+  /** Moves a story and its criteria and tasks to a new status together, if it's in `from`. */
+  setStatus(
+    scope: WorkspaceScope,
     storyId: string,
     from: Status[],
     patch: Partial<Story> & { status: Status },
-  ): Promise<Story | null> {
-    return transact((state) => {
-      const story = state.stories.find((s) => s.workspaceId === workspaceId && s.id === storyId);
-      if (!story || !from.includes(story.status)) return null;
-      Object.assign(story, patch);
-      for (const row of [...state.criteria, ...state.tasks]) {
-        if (row.storyId === storyId) {
-          row.status = patch.status;
-          row.updatedAt = patch.updatedAt ?? row.updatedAt;
-        }
-      }
-      return { ...story };
-    });
-  },
-
+  ): Promise<Story | null>;
   /** Rewrites a story (regenerate) and removes its criteria and tasks, in one write. */
-  async resetStory(
-    workspaceId: string,
+  resetStory(
+    scope: WorkspaceScope,
     id: string,
     allowed: Status[],
     patch: Partial<Story>,
-  ): Promise<Story | null> {
-    return transact((state) => {
-      const row = state.stories.find((s) => s.workspaceId === workspaceId && s.id === id);
-      if (!row || !allowed.includes(row.status)) return null;
-      Object.assign(row, patch);
-      state.criteria = state.criteria.filter((c) => c.storyId !== id);
-      state.tasks = state.tasks.filter((t) => t.storyId !== id);
-      return { ...row };
-    });
-  },
+  ): Promise<Story | null>;
+  updateEpic(scope: WorkspaceScope, id: string, patch: Partial<Epic>): Promise<void>;
+}
 
-  async updateEpic(workspaceId: string, id: string, patch: Partial<Epic>): Promise<void> {
-    await transact((state) => {
-      const epic = state.epics.find((e) => e.workspaceId === workspaceId && e.id === id);
-      if (epic) Object.assign(epic, patch);
-    });
-  },
+const postgres = () => dataBackend() === "postgres";
+const pick = () => (postgres() ? pgBacklog : storeBacklog);
+
+/** Demo store or Postgres, chosen per call by `DATA_DRIVER` (ADR-022, ADR-029). */
+export const backlogRepository: BacklogRepository = {
+  load: (...a) => pick().load(...a),
+  findStory: (...a) => pick().findStory(...a),
+  insert: (...a) => pick().insert(...a),
+  updateStory: (...a) => pick().updateStory(...a),
+  replaceChildren: (...a) => pick().replaceChildren(...a),
+  setStatus: (...a) => pick().setStatus(...a),
+  resetStory: (...a) => pick().resetStory(...a),
+  updateEpic: (...a) => pick().updateEpic(...a),
 };

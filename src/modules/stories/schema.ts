@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ARTIFACT_STATUS, EVIDENCE, ORIGINS } from "@/src/modules/requirements/schema";
+import { ARTIFACT_STATUS, EVIDENCE, ORIGINS } from "../requirements/schema";
 
 /** MoSCoW without "won't": a story we won't build is rejected instead. */
 export const PRIORITIES = ["must", "should", "could"] as const;

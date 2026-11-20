@@ -101,7 +101,7 @@ export async function loadBacklog(
   const [versions, requirements, rows, changes] = await Promise.all([
     prdRepository.listByProject(ctx, projectId),
     requirementRepository.listByProject(ctx, projectId),
-    backlogRepository.load(ws, projectId),
+    backlogRepository.load(ctx, projectId),
     impactRepository.load(ws, projectId),
   ]);
   const prd = [...versions].reverse().find((v) => v.status === "APPROVED") ?? null;

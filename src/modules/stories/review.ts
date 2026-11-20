@@ -23,7 +23,7 @@ export async function approveStory(ctx: WorkspaceContext, storyId: string): Prom
   );
   if (blockers.length) throw new AppError("CONFLICT", blockers.join(". "), blockers);
   const at = nowIso();
-  const approved = await backlogRepository.setStatus(ctx.workspace.id, storyId, ["DRAFT"], {
+  const approved = await backlogRepository.setStatus(ctx, storyId, ["DRAFT"], {
     status: "APPROVED",
     approvedBy: ctx.session.name,
     approvedAt: at,
@@ -56,7 +56,7 @@ export async function approveReadyStories(
   const at = nowIso();
   const approved: string[] = [];
   for (const s of ready) {
-    const done = await backlogRepository.setStatus(ctx.workspace.id, s.id, ["DRAFT"], {
+    const done = await backlogRepository.setStatus(ctx, s.id, ["DRAFT"], {
       status: "APPROVED",
       approvedBy: ctx.session.name,
       approvedAt: at,
@@ -85,7 +85,7 @@ export async function rejectStory(
   const { reason } = parseOrThrow(StoryRejection, input);
   const { story } = await current(ctx, storyId);
   requireDraft(story);
-  const rejected = await backlogRepository.setStatus(ctx.workspace.id, storyId, ["DRAFT"], {
+  const rejected = await backlogRepository.setStatus(ctx, storyId, ["DRAFT"], {
     status: "REJECTED",
     rejectionReason: reason,
     updatedAt: nowIso(),
@@ -100,7 +100,7 @@ export async function restoreStory(ctx: WorkspaceContext, storyId: string): Prom
   requireRole(ctx.role, MANAGER_ROLES, "restore stories");
   const { story } = await current(ctx, storyId);
   if (story.status !== "REJECTED") throw new AppError("CONFLICT", `${story.code} isn't rejected`);
-  const restored = await backlogRepository.setStatus(ctx.workspace.id, storyId, ["REJECTED"], {
+  const restored = await backlogRepository.setStatus(ctx, storyId, ["REJECTED"], {
     status: "DRAFT",
     rejectionReason: null,
     updatedAt: nowIso(),
@@ -147,7 +147,7 @@ export async function startStoryVersion(ctx: WorkspaceContext, storyId: string):
     createdAt: now,
     updatedAt: now,
   });
-  await backlogRepository.insert({
+  await backlogRepository.insert(ctx, {
     stories: [copy],
     criteria: b.rows.criteria.filter((c) => c.storyId === storyId).map(child),
     tasks: b.rows.tasks.filter((t) => t.storyId === storyId).map(child),

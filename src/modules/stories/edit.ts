@@ -47,7 +47,7 @@ function validateLinks(
 }
 
 export async function getStory(ctx: WorkspaceContext, storyId: string): Promise<Story> {
-  const story = await backlogRepository.findStory(ctx.workspace.id, storyId);
+  const story = await backlogRepository.findStory(ctx, storyId);
   if (!story) throw new AppError("NOT_FOUND", "Story not found");
   return story;
 }
@@ -99,7 +99,7 @@ export async function addStory(
     approvedBy: null,
     approvedAt: null,
   };
-  await backlogRepository.insert({ stories: [story] });
+  await backlogRepository.insert(ctx, { stories: [story] });
   await audit(ctx, story, "story.created");
   await refreshEpics(ctx, projectId);
   return story;
@@ -151,7 +151,7 @@ export async function updateStorySection(
       v.dependsOn,
     ]);
     if (before === after) return story;
-    saved = await backlogRepository.updateStory(ws, storyId, ["DRAFT"], {
+    saved = await backlogRepository.updateStory(ctx, storyId, ["DRAFT"], {
       ...v,
       origin: edited(story.origin),
       updatedAt: now,
@@ -181,7 +181,7 @@ export async function updateStorySection(
       };
     });
     const ok = await backlogRepository.replaceChildren(
-      ws,
+      ctx,
       storyId,
       { criteria: rows },
       { origin: edited(story.origin), updatedAt: now },
@@ -217,7 +217,7 @@ export async function updateStorySection(
       };
     });
     const ok = await backlogRepository.replaceChildren(
-      ws,
+      ctx,
       storyId,
       { tasks: rows },
       { origin: edited(story.origin), updatedAt: now },

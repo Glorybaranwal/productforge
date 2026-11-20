@@ -72,7 +72,7 @@ export function taskStage(options: ChildStageOptions = {}): Stage<TaskInput, Tas
 
     async persist(output, input, { ctx, projectId }, run) {
       const ws = ctx.workspace.id;
-      const rows = await backlogRepository.load(ws, projectId);
+      const rows = await backlogRepository.load(ctx, projectId);
       let next = nextNumber(
         rows.tasks.map((t) => t.code),
         "TASK",
@@ -102,7 +102,7 @@ export function taskStage(options: ChildStageOptions = {}): Stage<TaskInput, Tas
           }));
         const points = output.estimates.find((e) => e.storyCode === code)?.storyPoints ?? null;
         await backlogRepository.replaceChildren(
-          ws,
+          ctx,
           storyId,
           { tasks },
           story?.storyPoints === null && points !== null ? { storyPoints: points } : {},
