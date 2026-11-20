@@ -135,12 +135,12 @@ export async function generateBacklog(
 ): Promise<{ runs: AgentRun[]; replayed: boolean }> {
   requireRole(ctx.role, MANAGER_ROLES, "generate the backlog");
   requireGate2(await loadBacklog(ctx, projectId));
-  const before = (await backlogRepository.load(ctx.workspace.id, projectId)).stories.length;
+  const before = (await backlogRepository.load(ctx, projectId)).stories.length;
   const out = await idempotentPipeline(ctx, `backlog:${projectId}`, idempotencyKey, () =>
     runPipeline(ctx, projectId, {}, deps),
   );
   if (!out.replayed && out.runs.length) {
-    const after = (await backlogRepository.load(ctx.workspace.id, projectId)).stories.length;
+    const after = (await backlogRepository.load(ctx, projectId)).stories.length;
     await recordAudit(ctx, {
       entityType: "project",
       entityId: projectId,
@@ -164,7 +164,7 @@ export async function regenerateStory(
 ): Promise<{ runs: AgentRun[]; replayed: boolean }> {
   requireRole(ctx.role, MANAGER_ROLES, "regenerate stories");
   const { note } = parseOrThrow(StoryRegeneration, input ?? {});
-  const story = await backlogRepository.findStory(ctx.workspace.id, storyId);
+  const story = await backlogRepository.findStory(ctx, storyId);
   if (!story) throw new AppError("NOT_FOUND", "Story not found");
   const out = await idempotentPipeline(ctx, `story:${storyId}`, idempotencyKey, () =>
     runPipeline(ctx, story.projectId, { targetId: storyId, note }, deps),

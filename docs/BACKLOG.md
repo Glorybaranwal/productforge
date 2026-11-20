@@ -332,9 +332,11 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - **Done when:** generate → edit → approve (Gate 2) works with `DATA_DRIVER=postgres`.
   - *2026-11-20:* code and tests done (ADR-028; PGlite `prd-data.test.ts` 7/7). Checked on Mumbai in Chrome: generate
     → edit (ai_edited) → approve → edit refused (409) → v2 from v1, asking again returns the same draft.
-- [ ] **PF-073 — Backlog in Postgres** · Depends on: PF-072 (absorbs PF-033)
+- [~] **PF-073 — Backlog in Postgres** · Depends on: PF-072 (absorbs PF-033)
   - `epics`, `stories` (versioned), `story_requirements`, `story_dependencies`, `acceptance_criteria`, `tasks`.
   - **Done when:** backlog generation, review (Gate 3) and traceability work with `DATA_DRIVER=postgres`.
+  - *2026-11-20:* code and tests done (ADR-029; PGlite `backlog-data.test.ts` 8/8). Requirement and story links
+    stay code arrays instead of join tables. Left: CI, `db:migrate` on Mumbai, a click-through; then PF-033 closes too.
 - [ ] **PF-074 — Sprints, exports and change requests in Postgres** · Depends on: PF-073
   - **Done when:** sprint planning, Jira export and requirement changes work with `DATA_DRIVER=postgres`.
 - [ ] **PF-075 — Postgres-only mode** · Depends on: PF-074

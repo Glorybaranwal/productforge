@@ -668,3 +668,30 @@ analysed before today shows no "last run" until it runs again.
 keep it frozen. Two drafts open at once would split edits between them and make "the latest version" ambiguous.
 **Consequences:** PRDs written before today stay in the demo file; a project generates its PRD again after the
 switch. Stories still read the PRD from Postgres and keep their own data in the file store until PF-073.
+
+### ADR-029 — The backlog in Postgres (PF-073)
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request
+**Decision:**
+- **Tables** (migration `0007_backlog.sql`): `epics`, `stories` (one row per version), `acceptance_criteria` and
+  `technical_tasks`. Each row carries the generated-row columns (status, evidence, origin, agent run). Composite
+  foreign keys keep each row in its project's workspace and point it at its run, its epic or its story version.
+  A story version's criteria and tasks are deleted with it.
+- **Links stay codes:** `stories.requirement_codes` and `stories.depends_on` are text arrays of codes (`FR-01`,
+  `US-002`). They replace the `story_requirements` and `story_dependencies` join tables planned for PF-033. A link
+  means "this requirement, whichever version is current", and requirement versions change while codes don't. The
+  backlog validator (PF-044) already rejects unknown codes. A GIN index serves "which stories link FR-03?"
+  (change impact).
+- **RLS:** members read and edit drafts. Owners, admins and PMs create stories and epics, and move stories between
+  statuses (approve, reject, restore: Gate 3). Members can't change a status. An APPROVED story and its criteria
+  and tasks never change. Only a draft's own criteria and tasks are ever deleted (editing replaces them;
+  regenerating a rejected story clears them, manager only). Signed-in users have no DELETE privilege on epics or
+  stories.
+- Multi-row writes are one transaction each: inserting a generated backlog, replacing a draft's children, and
+  moving a story and its children to a new status. Two people adding stories at once get CONFLICT instead of
+  duplicate codes.
+**Why:** Gate 3 promises that approved stories are what gets exported and planned, so the database keeps them
+frozen whatever a service does. Codes as links keep traceability working across requirement and story versions
+without rewriting links on every new version.
+**Consequences:** There's no database-level foreign key from a story to a requirement; integrity comes from the
+validator, as before. `technical_tasks.sprint_id` becomes a foreign key when sprints move (PF-074). Backlogs made
+before today stay in the demo file and are generated again after the switch.

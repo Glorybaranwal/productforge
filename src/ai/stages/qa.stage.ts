@@ -144,7 +144,7 @@ export function qaStage(options: ChildStageOptions = {}): Stage<QaInput, QaOutpu
             createdAt: now,
             updatedAt: now,
           }));
-        await backlogRepository.replaceChildren(ctx.workspace.id, storyId, { criteria });
+        await backlogRepository.replaceChildren(ctx, storyId, { criteria });
       }
     },
   };

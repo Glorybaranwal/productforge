@@ -78,9 +78,7 @@ Common columns on generated entities: `id uuid`, `workspace_id`, `project_id`, `
 | clarifying_questions | project_id, question, answer, state (open/answered/skipped/assumption) |
 | prds | project_id, version, content jsonb, status (DRAFT/APPROVED), origin, based_on_version, agent_run_id, created_by, approved_by (name), approved_at. One open draft per project; approved versions never change; never deleted (ADR-028) |
 | epics | code (EP-01), title, description |
-| user_stories | epic_id, code (US-001), version, title, persona, description, priority, story_points |
-| story_requirements | story_id, requirement_id, requirement_version |
-| story_dependencies | story_id, depends_on_story_id |
+| stories | epic_id, code (US-001), version, based_on_version, title, as_a, i_want, so_that, priority, story_points, requirement_codes text[], depends_on text[] (story codes), rationale, rejection_reason, prd_version, created_by, approved_by (name), approved_at. Links are codes, not join tables (ADR-029) |
 | acceptance_criteria | story_id, kind (positive/negative/edge), given, when, then, position |
 | technical_tasks | story_id, code (TASK-001), title, description, estimate_hours, position |
 | sprint_settings | project_id, velocity, start_date (one row per project) |

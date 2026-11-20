@@ -15,7 +15,7 @@ export async function current(
   ctx: WorkspaceContext,
   storyId: string,
 ): Promise<{ story: Story; b: BacklogContext }> {
-  const found = await backlogRepository.findStory(ctx.workspace.id, storyId);
+  const found = await backlogRepository.findStory(ctx, storyId);
   if (!found) throw new AppError("NOT_FOUND", "Story not found");
   const b = await loadBacklog(ctx, found.projectId);
   const story = b.current.find((s) => s.id === storyId);
@@ -62,7 +62,7 @@ export async function refreshEpics(ctx: WorkspaceContext, projectId: string): Pr
     const live = b.current.filter((s) => s.epicId === epic.id && s.status !== "REJECTED");
     const status = live.length && live.every((s) => s.status === "APPROVED") ? "APPROVED" : "DRAFT";
     if (epic.status !== status)
-      await backlogRepository.updateEpic(ctx.workspace.id, epic.id, {
+      await backlogRepository.updateEpic(ctx, epic.id, {
         status,
         updatedAt: nowIso(),
       });
