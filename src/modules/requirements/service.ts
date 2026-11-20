@@ -15,7 +15,7 @@ import {
 } from "./schema";
 
 async function assertNotConfirmed(ctx: WorkspaceContext, projectId: string) {
-  const discovery = await discoveryRepository.get(ctx.workspace.id, projectId);
+  const discovery = await discoveryRepository.get(ctx, projectId);
   if (discovery?.status === "confirmed") {
     throw new AppError(
       "CONFLICT",
@@ -31,7 +31,7 @@ export async function updateRequirement(
   input: unknown,
 ): Promise<Requirement> {
   const patch = parseOrThrow(RequirementEdit, input);
-  const current = await requirementRepository.findById(ctx.workspace.id, id);
+  const current = await requirementRepository.findById(ctx, id);
   if (!current) throw new AppError("NOT_FOUND", "Requirement not found");
   await assertNotConfirmed(ctx, current.projectId);
   if (current.status === "APPROVED")
@@ -45,7 +45,7 @@ export async function updateRequirement(
   if (Object.keys(diff).length === 0) return current;
 
   const contentChanged = "text" in diff || "type" in diff || "evidence" in diff;
-  const updated = await requirementRepository.update(ctx.workspace.id, id, {
+  const updated = await requirementRepository.update(ctx, id, {
     ...patch,
     origin: contentChanged && current.origin === "ai" ? "ai_edited" : current.origin,
     updatedAt: nowIso(),
@@ -72,7 +72,7 @@ export async function addRequirement(
   await assertNotConfirmed(ctx, projectId);
   const data = parseOrThrow(RequirementCreate, input);
   const now = nowIso();
-  const requirement = await requirementRepository.insert({
+  const requirement = await requirementRepository.insert(ctx, {
     id: newId(),
     workspaceId: ctx.workspace.id,
     projectId,
@@ -106,13 +106,13 @@ export async function resolveQuestion(
   input: unknown,
 ): Promise<ClarifyingQuestion> {
   const resolution = parseOrThrow(QuestionResolution, input);
-  const current = await questionRepository.findById(ctx.workspace.id, id);
+  const current = await questionRepository.findById(ctx, id);
   if (!current) throw new AppError("NOT_FOUND", "Question not found");
   await assertNotConfirmed(ctx, current.projectId);
 
   const answer =
     resolution.state === "answered" || resolution.state === "assumption" ? resolution.answer : null;
-  const updated = await questionRepository.update(ctx.workspace.id, id, {
+  const updated = await questionRepository.update(ctx, id, {
     state: resolution.state,
     answer,
     resolvedAt: resolution.state === "open" ? null : nowIso(),

@@ -30,15 +30,14 @@ export const prdStage: Stage<PrdInput, PrdContent> = {
   outputSchema: PrdContent,
 
   async loadContext({ ctx, projectId }) {
-    const ws = ctx.workspace.id;
     const project = await getProject(ctx, projectId);
-    const discovery = await discoveryRepository.get(ws, projectId);
+    const discovery = await discoveryRepository.get(ctx, projectId);
     if (discovery?.status !== "confirmed") {
       throw new AppError("CONFLICT", "Confirm the requirements (Gate 1) before generating the PRD");
     }
     const [requirements, questions] = await Promise.all([
-      requirementRepository.listByProject(ws, projectId),
-      questionRepository.listByProject(ws, projectId),
+      requirementRepository.listByProject(ctx, projectId),
+      questionRepository.listByProject(ctx, projectId),
     ]);
     return {
       project: {

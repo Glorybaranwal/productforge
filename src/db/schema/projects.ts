@@ -4,7 +4,16 @@
  * the same rules as the projects service.
  */
 import { sql } from "drizzle-orm";
-import { check, index, integer, pgPolicy, pgTable, uuid, varchar } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  integer,
+  pgPolicy,
+  pgTable,
+  unique,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { authenticatedRole, authUsers } from "drizzle-orm/supabase";
 
 import { createdAt, updatedAt } from "./columns";
@@ -30,6 +39,9 @@ export const projects = pgTable(
   },
   (t) => [
     index("projects_workspace_id_idx").on(t.workspaceId),
+    // Lets child tables reference (project, workspace) together, so a row can't pair a project
+    // with another workspace (PF-070).
+    unique("projects_id_workspace_id_key").on(t.id, t.workspaceId),
     check("projects_team_size_range", sql`${t.teamSize} between 1 and 100`),
     check("projects_sprint_length_days", sql`${t.sprintLengthDays} in (7, 14, 21, 28)`),
     pgPolicy("projects_select_member", {

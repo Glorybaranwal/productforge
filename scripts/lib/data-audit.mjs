@@ -2,7 +2,6 @@
 // `exec(sql, params)` must run inside ONE transaction that the caller rolls back afterwards.
 // Returns { failures, notes }: any failure is a leak or a missing safeguard.
 
-const TABLES = ["workspaces", "workspace_members", "projects", "audit_logs"];
 const STRANGER = "00000000-0000-4000-8000-0000deadbeef";
 
 export async function auditDataIsolation(exec) {
@@ -68,6 +67,13 @@ export async function auditDataIsolation(exec) {
     if (!f.config.includes("search_path")) fail(`private.${f.proname} has no fixed search_path`);
   }
 
+  // Every table that holds workspace data: `workspaces` itself, and each table with a workspace_id.
+  const scoped = await exec(
+    `select table_name from information_schema.columns
+     where table_schema = 'public' and column_name = 'workspace_id' order by 1`,
+  );
+  const TABLES = ["workspaces", ...scoped.map((r) => r.table_name)];
+
   // 4. A visitor who isn't signed in, and a signed-in stranger with no workspace, see nothing.
   for (const table of TABLES) {
     const anon = await as("anon", null, `select count(*)::int as n from public.${table}`);
@@ -94,20 +100,11 @@ export async function auditDataIsolation(exec) {
       (r) => r.id,
     );
     const allowedWorkspaces = new Set([...mine, ...owned]);
-    const seen = {
-      workspaces: await as("authenticated", user, `select id as ws from public.workspaces`),
-      workspace_members: await as(
-        "authenticated",
-        user,
-        `select workspace_id as ws from public.workspace_members`,
-      ),
-      projects: await as("authenticated", user, `select workspace_id as ws from public.projects`),
-      audit_logs: await as(
-        "authenticated",
-        user,
-        `select workspace_id as ws from public.audit_logs`,
-      ),
-    };
+    const seen = {};
+    for (const table of TABLES) {
+      const column = table === "workspaces" ? "id" : "workspace_id";
+      seen[table] = await as("authenticated", user, `select ${column} as ws from public.${table}`);
+    }
     for (const [table, result] of Object.entries(seen)) {
       if (result.error) {
         fail(`user ${user.slice(0, 8)}… can't read ${table}: ${result.error}`);

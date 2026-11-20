@@ -299,6 +299,35 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
 
 ---
 
+## Week 7 — Data into Postgres
+
+Every module moves from the demo store to Postgres behind its existing repository interface (ADR-022), as the
+signed-in user so RLS applies, with PGlite tests of the real services. Order follows the data's dependencies.
+
+- [~] **PF-070 — Discovery data in Postgres** · Depends on: PF-015
+  - Tables `requirements` (versioned; approved rows immutable in the database), `clarifying_questions`, `discoveries`,
+    `source_documents`, with RLS matching the product rules: members read and edit drafts, owners/admins/PMs run
+    discovery and approve.
+  - A discovery run (replace AI drafts, add requirements with codes, refresh open questions, save the summary) is one
+    transaction.
+  - **Done when:** discovery → answer questions → confirm works with `DATA_DRIVER=postgres`; repository + RLS tests pass.
+  - *2026-11-20:* code and tests done (ADR-026; PGlite `discovery-data.test.ts` 7/7). Left: green CI on the PR,
+    `db:migrate` on Mumbai, and a click-through with `DATA_DRIVER=postgres`.
+- [ ] **PF-071 — AI run log and idempotency in Postgres** · Depends on: PF-070
+  - `agent_runs`, `idempotency_records`; `agent_run_id` columns become foreign keys.
+  - **Done when:** every stage run is logged in Postgres and a repeated `Idempotency-Key` returns the first result.
+- [ ] **PF-072 — PRDs in Postgres** · Depends on: PF-070, PF-071
+  - `prds` (versions, JSONB sections), approved versions immutable.
+  - **Done when:** generate → edit → approve (Gate 2) works with `DATA_DRIVER=postgres`.
+- [ ] **PF-073 — Backlog in Postgres** · Depends on: PF-072 (absorbs PF-033)
+  - `epics`, `stories` (versioned), `story_requirements`, `story_dependencies`, `acceptance_criteria`, `tasks`.
+  - **Done when:** backlog generation, review (Gate 3) and traceability work with `DATA_DRIVER=postgres`.
+- [ ] **PF-074 — Sprints, exports and change requests in Postgres** · Depends on: PF-073
+  - **Done when:** sprint planning, Jira export and requirement changes work with `DATA_DRIVER=postgres`.
+- [ ] **PF-075 — Postgres-only mode** · Depends on: PF-074
+  - With `DATA_DRIVER=postgres` nothing touches the file store; demo mode keeps it.
+  - **Done when:** the app runs with a read-only file system (unblocks PF-064).
+
 ## Later (not scheduled)
 
 - Jira API sync · team collaboration / comments · duplicate-story detection (embeddings) · release notes ·

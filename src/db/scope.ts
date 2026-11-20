@@ -6,6 +6,8 @@
  * RLS applies (ADR-020). Anything else keeps them in the demo store (ADR-011). Modules without
  * tables yet stay in the demo store either way.
  */
+import { sql } from "drizzle-orm";
+
 import type { Session } from "@/src/lib/auth";
 import { AppError } from "@/src/lib/errors";
 import { logger } from "@/src/lib/logger";
@@ -17,6 +19,30 @@ export type DataBackend = "store" | "postgres";
 
 /** Who is acting, and the open transaction if a unit of work started one. */
 export type Scope = { session: Session; tx?: Tx };
+
+/** A scope inside a workspace. Every service context (`WorkspaceContext`) is one. */
+export type WorkspaceScope = Scope & { workspace: { id: string } };
+
+/** ISO strings → Date for the given keys of a domain patch, so it can be written to timestamp columns. */
+export function withDates<T extends Record<string, unknown>>(patch: T, keys: readonly string[]) {
+  const out: Record<string, unknown> = { ...patch };
+  for (const key of keys) {
+    const value = out[key];
+    if (typeof value === "string") out[key] = new Date(value);
+  }
+  return out;
+}
+
+/** Date → ISO string (or null), for mapping rows back to domain types. */
+export const iso = (value: Date | null): string | null => (value ? value.toISOString() : null);
+
+/**
+ * Serialises writes to one project inside a transaction (e.g. two runs picking the next FR code at
+ * once). Released when the transaction ends.
+ */
+export async function lockProject(tx: Tx, projectId: string): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${projectId}, 1))`);
+}
 
 type Env = Record<string, string | undefined>;
 

@@ -71,8 +71,8 @@ async function loadBasics(ctx: WorkspaceContext, projectId: string) {
   await getProject(ctx, projectId);
   const ws = ctx.workspace.id;
   const [discovery, requirements, versions, changes] = await Promise.all([
-    discoveryRepository.get(ws, projectId),
-    requirementRepository.listByProject(ws, projectId),
+    discoveryRepository.get(ctx, projectId),
+    requirementRepository.listByProject(ctx, projectId),
     prdRepository.listByProject(ws, projectId),
     impactRepository.load(ws, projectId),
   ]);
@@ -182,7 +182,7 @@ export async function approvePrd(ctx: WorkspaceContext, id: string): Promise<Prd
   const versions = await prdRepository.listByProject(ctx.workspace.id, prd.projectId);
   if (versions.at(-1)?.id !== prd.id)
     throw new AppError("CONFLICT", "Only the latest version can be approved");
-  const approvedCodes = (await requirementRepository.listByProject(ctx.workspace.id, prd.projectId))
+  const approvedCodes = (await requirementRepository.listByProject(ctx, prd.projectId))
     .filter((r) => r.status === "APPROVED")
     .map((r) => r.code);
   const blockers = prdBlockers(prd, approvedCodes);
