@@ -24,11 +24,14 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - Ask the user Drizzle vs Prisma; record in ADR-005.
   - **Done when:** ADR-005 is ACCEPTED.
   - _2026-11-18: user delegated the call; Drizzle chosen (ADR-005)._
-- [ ] **PF-003 — Domain Zod schemas** · Depends on: PF-001
+- [x] **PF-003 — Domain Zod schemas** · Depends on: PF-001
   - `Evidence`, `ArtifactStatus`, `Requirement`, `ClarifyingQuestion`, `Prd` (+ sections), `Epic`, `UserStory`,
     `AcceptanceCriterion`, `TechnicalTask`, `Sprint` in `src/modules/*/schema.ts`.
   - Story requires `requirementIds.min(1)` and `acceptanceCriteria.min(2)`.
   - **Done when:** unit tests pass for one valid and two invalid samples per schema.
+  - *2026-11-20:* `tests/unit/schemas/domain.test.ts` (24 cases: Requirement, ClarifyingQuestion, Prd, Epic, Story,
+    AcceptanceCriterion, TechnicalTask, Sprint). Stories link ≥ 1 requirement in the schema; "≥ 2 criteria" is a
+    backlog rule (PF-044), since criteria are their own rows.
 - [x] **PF-004 — AI eval fixtures** · Depends on: —
   - 20 fixtures in `tests/ai-evals/fixtures/` using the format in its README:
     5 normal, 4 vague, 4 contradictory, 4 missing-info, 3 complex.
