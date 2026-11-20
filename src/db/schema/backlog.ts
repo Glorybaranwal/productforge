@@ -152,7 +152,10 @@ export const stories = pgTable(
     index("stories_requirement_codes_idx").using("gin", t.requirementCodes),
     check("stories_code_format", sql`${t.code} ~ '^US-[0-9]{3,}$'`),
     check("stories_version_positive", sql`${t.version} > 0`),
-    check("stories_points", sql`${t.storyPoints} is null or ${t.storyPoints} in (1, 2, 3, 5, 8, 13)`),
+    check(
+      "stories_points",
+      sql`${t.storyPoints} is null or ${t.storyPoints} in (1, 2, 3, 5, 8, 13)`,
+    ),
     check("stories_requirements_linked", sql`cardinality(${t.requirementCodes}) >= 1`),
     read("stories", t.workspaceId),
     pgPolicy("stories_insert_manager", {

@@ -97,12 +97,11 @@ export async function loadBacklog(
   projectId: string,
 ): Promise<BacklogContext> {
   const project = await getProject(ctx, projectId);
-  const ws = ctx.workspace.id;
   const [versions, requirements, rows, changes] = await Promise.all([
     prdRepository.listByProject(ctx, projectId),
     requirementRepository.listByProject(ctx, projectId),
     backlogRepository.load(ctx, projectId),
-    impactRepository.load(ws, projectId),
+    impactRepository.load(ctx, projectId),
   ]);
   const prd = [...versions].reverse().find((v) => v.status === "APPROVED") ?? null;
   const current = currentStories(rows.stories);

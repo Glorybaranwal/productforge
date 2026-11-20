@@ -24,10 +24,9 @@ export type AnalysisResult = {
 
 export async function load(ctx: WorkspaceContext, projectId: string) {
   const b = await loadBacklog(ctx, projectId);
-  const ws = ctx.workspace.id;
   const [rows, plan, discovery] = await Promise.all([
-    impactRepository.load(ws, projectId),
-    sprintRepository.load(ws, projectId),
+    impactRepository.load(ctx, projectId),
+    sprintRepository.load(ctx, projectId),
     discoveryRepository.get(ctx, projectId),
   ]);
   return { b, rows, plan, gate1Passed: discovery?.status === "confirmed" };
@@ -59,7 +58,7 @@ export async function audit(
 }
 
 export async function find(ctx: WorkspaceContext, id: string): Promise<RequirementChange> {
-  const change = await impactRepository.find(ctx.workspace.id, id);
+  const change = await impactRepository.find(ctx, id);
   if (!change) throw new AppError("NOT_FOUND", "Change request not found");
   return change;
 }
@@ -97,7 +96,7 @@ export async function analyze(
     deps,
   );
   if (run.status === "failed")
-    await impactRepository.update(ctx.workspace.id, change.id, { agentRunId: run.id });
+    await impactRepository.update(ctx, change.id, { agentRunId: run.id });
   return run;
 }
 

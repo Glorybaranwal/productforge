@@ -1,63 +1,34 @@
-import { readState, transact } from "@/src/db/store";
+import { dataBackend, type WorkspaceScope } from "@/src/db/scope";
 
+import { pgChanges } from "./pg-repository";
 import type { ImpactReview, RequirementChange } from "./schema";
-
-const mine =
-  (workspaceId: string, projectId: string) => (r: { workspaceId: string; projectId: string }) =>
-    r.workspaceId === workspaceId && r.projectId === projectId;
+import { storeChanges } from "./store-repository";
 
 export type ChangeRows = { changes: RequirementChange[]; reviews: ImpactReview[] };
 
-/** Change requests and review marks (PF-053). Scoped by workspace, mirroring RLS. */
-export const impactRepository = {
-  async load(workspaceId: string, projectId: string): Promise<ChangeRows> {
-    const state = await readState();
-    const own = mine(workspaceId, projectId);
-    return {
-      changes: state.changes.filter(own).sort((a, b) => a.number - b.number),
-      reviews: state.impactReviews.filter(own),
-    };
-  },
-
-  async find(workspaceId: string, id: string): Promise<RequirementChange | null> {
-    const state = await readState();
-    return state.changes.find((c) => c.workspaceId === workspaceId && c.id === id) ?? null;
-  },
-
+/** Change requests and review marks (PF-053, PF-074). Decided changes never change. */
+export interface ImpactRepository {
+  load(scope: WorkspaceScope, projectId: string): Promise<ChangeRows>;
+  find(scope: WorkspaceScope, id: string): Promise<RequirementChange | null>;
   /** Inserts with the next CR number for the project. */
-  async insert(row: Omit<RequirementChange, "number">): Promise<RequirementChange> {
-    return transact((state) => {
-      const own = mine(row.workspaceId, row.projectId);
-      const number = Math.max(0, ...state.changes.filter(own).map((c) => c.number)) + 1;
-      const change = { ...row, number };
-      state.changes.push(change);
-      return change;
-    });
-  },
-
-  /** Updates a proposed change (DRAFT only); decided changes are frozen. */
-  async update(
-    workspaceId: string,
+  insert(scope: WorkspaceScope, row: Omit<RequirementChange, "number">): Promise<RequirementChange>;
+  /** Updates a proposed change (DRAFT only); null for decided or unknown ones. */
+  update(
+    scope: WorkspaceScope,
     id: string,
     patch: Partial<RequirementChange>,
-  ): Promise<RequirementChange | null> {
-    return transact((state) => {
-      const row = state.changes.find((c) => c.workspaceId === workspaceId && c.id === id);
-      if (!row || row.status !== "DRAFT") return null;
-      Object.assign(row, patch);
-      return { ...row };
-    });
-  },
+  ): Promise<RequirementChange | null>;
+  /** Records a review mark once; a repeat is ignored. */
+  addReview(scope: WorkspaceScope, review: ImpactReview): Promise<void>;
+}
 
-  async addReview(review: ImpactReview): Promise<void> {
-    await transact((state) => {
-      const exists = state.impactReviews.some(
-        (r) =>
-          r.workspaceId === review.workspaceId &&
-          r.changeId === review.changeId &&
-          r.ref === review.ref,
-      );
-      if (!exists) state.impactReviews.push(review);
-    });
-  },
+const pick = () => (dataBackend() === "postgres" ? pgChanges : storeChanges);
+
+/** Demo store or Postgres, chosen per call by `DATA_DRIVER` (ADR-022, ADR-030). */
+export const impactRepository: ImpactRepository = {
+  load: (...a) => pick().load(...a),
+  find: (...a) => pick().find(...a),
+  insert: (...a) => pick().insert(...a),
+  update: (...a) => pick().update(...a),
+  addReview: (...a) => pick().addReview(...a),
 };

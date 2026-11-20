@@ -48,11 +48,17 @@ describe("table privileges (ADR-023)", () => {
       // Epics, stories and PRD versions are never deleted (ADR-028, ADR-029).
       epics: ["INSERT", "SELECT", "UPDATE"],
       idempotency_records: ["INSERT", "SELECT"],
+      // Review marks are written once; decided changes and settings are never deleted (ADR-030).
+      impact_reviews: ["INSERT", "SELECT"],
       // A PRD version is never deleted (ADR-028).
       prds: ["INSERT", "SELECT", "UPDATE"],
       projects: write,
+      requirement_changes: ["INSERT", "SELECT", "UPDATE"],
       requirements: write,
       source_documents: write,
+      sprint_items: write,
+      sprint_settings: ["INSERT", "SELECT", "UPDATE"],
+      sprints: write,
       stories: ["INSERT", "SELECT", "UPDATE"],
       technical_tasks: write,
       workspace_members: write,
