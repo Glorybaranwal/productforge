@@ -578,6 +578,12 @@ no force pushes or deletion). Vercel project `productforge-l5ep` builds the repo
 (created by the Supabase integration flow) was disconnected from Git. Dependabot's npm job failed on pnpm's minimum
 release age (`ERR_PNPM_NO_MATURE_MATCHING_VERSION`): it now waits 3 days before proposing a version and leaves major
 upgrades (vitest 5, postgres 4, @vitejs/plugin-react 6) to planned tasks.
+**Follow-up (2026-11-20, PF-070):** the Supabase–Vercel integration tried during setup had stayed connected to the
+Mumbai project and had replaced its auth Site URL with the old Vercel address and added four Vercel redirect URLs, so
+magic links went to that paused site. Fixed: connection removed, Site URL back to `http://localhost:3000`, the Vercel
+URLs removed (no secrets had been synced to that Vercel project). Don't reconnect the integration; set auth URLs by
+hand. Supabase accepts a redirect when its host matches the Site URL's or it matches an allow-list pattern in full,
+query included, so the production entry must be `https://<host>/auth/callback?**` (the callback carries `?next=`).
 **Consequences:** Branch protection on `main` (require the CI checks) is set in GitHub by the repo owner. Preview data
 is throwaway. Turning production on means adding the Supabase variables to Vercel's Production environment, the
 production URL to Supabase's redirect URLs, and removing the `main: false` rule.

@@ -288,7 +288,8 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
 - [ ] **PF-064 — Production deploy + demo seed** · Depends on: PF-016, PF-060
   - Seeded demo project (transaction monitoring dashboard).
   - Needs every module's data in Postgres first (the file store needs a writable disk). Then: Supabase variables in
-    Vercel's Production environment, production URL in Supabase redirect URLs, remove
+    Vercel's Production environment, production callback in Supabase redirect URLs as `https://<host>/auth/callback?**` (set by hand, not the
+    Vercel integration), remove
     `git.deploymentEnabled.main = false` from `vercel.json`, branch protection on `main` (ADR-025).
 - [ ] **PF-065 — README + demo** · Depends on: PF-064
   - README with screenshots, architecture diagram, eval results; 3–5 min demo script and recording.
@@ -309,15 +310,16 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
 Every module moves from the demo store to Postgres behind its existing repository interface (ADR-022), as the
 signed-in user so RLS applies, with PGlite tests of the real services. Order follows the data's dependencies.
 
-- [~] **PF-070 — Discovery data in Postgres** · Depends on: PF-015
+- [x] **PF-070 — Discovery data in Postgres** · Depends on: PF-015
   - Tables `requirements` (versioned; approved rows immutable in the database), `clarifying_questions`, `discoveries`,
     `source_documents`, with RLS matching the product rules: members read and edit drafts, owners/admins/PMs run
     discovery and approve.
   - A discovery run (replace AI drafts, add requirements with codes, refresh open questions, save the summary) is one
     transaction.
   - **Done when:** discovery → answer questions → confirm works with `DATA_DRIVER=postgres`; repository + RLS tests pass.
-  - *2026-11-20:* code and tests done (ADR-026; PGlite `discovery-data.test.ts` 7/7). Left: green CI on the PR,
-    `db:migrate` on Mumbai, and a click-through with `DATA_DRIVER=postgres`.
+  - *2026-11-20:* code and tests done (ADR-026; PGlite `discovery-data.test.ts` 7/7). Migration 0004 applied to Mumbai;
+    CI green on PR #4; clicked through on Mumbai: brief → discovery (12 requirements, 10 questions) → answer / assume /
+    skip → Gate 1 (12 approved, survives reload) → PRD generated covering 12/12.
 - [ ] **PF-071 — AI run log and idempotency in Postgres** · Depends on: PF-070
   - `agent_runs`, `idempotency_records`; `agent_run_id` columns become foreign keys.
   - **Done when:** every stage run is logged in Postgres and a repeated `Idempotency-Key` returns the first result.

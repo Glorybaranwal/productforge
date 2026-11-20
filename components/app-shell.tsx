@@ -9,11 +9,19 @@ type AppShellProps = {
   userName: string;
   /** "demo": no sign-in (ADR-011); "supabase": signed in, with a sign-out button (PF-013). */
   authMode: "demo" | "supabase";
+  /** Where data lives: the file store on this computer, or Supabase Postgres (ADR-022). */
+  dataBackend: "store" | "postgres";
   children: ReactNode;
 };
 
 /** Signed-in chrome: product name, workspace, data-mode marker, user, sign-out. */
-export function AppShell({ workspaceName, userName, authMode, children }: AppShellProps) {
+export function AppShell({
+  workspaceName,
+  userName,
+  authMode,
+  dataBackend,
+  children,
+}: AppShellProps) {
   return (
     <div className="min-h-screen bg-muted/40">
       <header className="border-b bg-background">
@@ -35,10 +43,17 @@ export function AppShell({ workspaceName, userName, authMode, children }: AppShe
               >
                 Demo mode
               </Badge>
+            ) : dataBackend === "postgres" ? (
+              <Badge
+                variant="outline"
+                title="Signed in with Supabase; data is stored in the Supabase database, module by module (PF-070–PF-075)"
+              >
+                Supabase data
+              </Badge>
             ) : (
               <Badge
                 variant="outline"
-                title="Signed in with Supabase; projects are still stored on this computer until they move to the database (PF-015)"
+                title="Signed in with Supabase; data is stored on this computer (DATA_DRIVER isn't postgres)"
               >
                 Local data
               </Badge>
