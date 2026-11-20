@@ -1,15 +1,24 @@
 # Keeps dependencies and the CI actions current; each update arrives as a PR that CI checks.
+# ADR-025: only versions at least 3 days old (pnpm's own minimum release age blocks fresher ones, and a
+# short wait avoids freshly published malicious releases); major versions are planned as backlog tasks.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
     open-pull-requests-limit: 5
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
