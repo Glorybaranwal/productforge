@@ -7,11 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest } from "@/src/lib/api-client";
-import {
-  ACCEPTED_FILE_TYPES,
-  MAX_SOURCE_CHARS,
-  type SourceDocument,
-} from "@/src/modules/sources/schema";
+import { ACCEPTED_FILE_TYPES, type SourceDocument } from "@/src/modules/sources/schema";
 
 import { SAMPLE_BRIEF } from "./sample-brief";
 import { useAction } from "./use-action";
@@ -42,17 +38,10 @@ export function SourcesPanel({ projectId, sources, locked }: Props) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    const content = await file.text();
-    await add.run(() =>
-      apiRequest(`/api/projects/${projectId}/sources`, {
-        method: "POST",
-        body: {
-          name: file.name.slice(0, 120),
-          kind: "file",
-          text: content.slice(0, MAX_SOURCE_CHARS + 1),
-        },
-      }),
-    );
+    // The server reads the text out of PDFs and Word files (PF-023).
+    const body = new FormData();
+    body.append("file", file);
+    await add.run(() => apiRequest(`/api/projects/${projectId}/sources`, { method: "POST", body }));
   }
 
   return (
@@ -150,19 +139,19 @@ export function SourcesPanel({ projectId, sources, locked }: Props) {
               disabled={add.busy}
               onClick={() => fileInput.current?.click()}
             >
-              Upload .txt / .md
+              Upload PDF, Word or text
             </Button>
             <input
               ref={fileInput}
               type="file"
               accept={ACCEPTED_FILE_TYPES.join(",")}
               className="sr-only"
-              aria-label="Upload a text file"
+              aria-label="Upload a PDF, Word or text file"
               onChange={onFile}
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            PDF and Word extraction comes with document upload (PF-023).
+            PDF (up to 50 pages), Word or text, up to 10 MB. Only the text is kept.
           </p>
         </form>
       )}

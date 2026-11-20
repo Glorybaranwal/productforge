@@ -752,3 +752,23 @@ app with `DATA_DRIVER=postgres` but without Supabase sign-in was already refused
 run; with a nonce it can't, because it can't know that request's nonce.
 **Consequences:** Every page is dynamic, a few ms per render. Checked in Chrome on all 8 project pages and the
 dashboard: no violations, and client code (forms, menus) works.
+
+### ADR-033 — Document upload: extract text on the server, keep only the text (PF-023)
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request
+**Decision:**
+- `POST /api/projects/:id/sources` also takes a multipart upload (`file`). The server extracts the text and stores
+  it as a `source_documents` row (`kind: "file"`). The original file is not kept, so there's no Storage bucket to
+  secure (SEC-12 becomes N/A until originals are stored).
+- **Formats:** PDF via `unpdf` (serverless build of pdf.js, no worker), Word `.docx` via `mammoth` (raw text), and
+  `.txt`/`.md`/`.csv` as UTF-8. New dependencies, pinned: `unpdf` 2.2.1 and `mammoth` 1.13.0.
+- **Checks before any parser runs (SEC-11):** 10 MB maximum and an extension allow-list. The content must match
+  the extension: `%PDF-` for PDFs, a zip containing `word/document.xml` for .docx, valid UTF-8 without NUL bytes
+  for text. A .docx is refused if its zip directory declares more than 50 MB unpacked or more than 1,000 entries
+  (zip bombs), checked without unpacking. PDFs are limited to 50 pages, checked before the text is read.
+- Text over 50,000 characters is cut with a visible "[Truncated: …]" note, which the model reads too. The API
+  returns `truncated` and `pages`. A file with no text (a scanned image) is refused with a hint.
+**Why:** Briefs and notes arrive as PDFs and Word files. Keeping only text keeps the data model and the privacy
+story simple. Validating before parsing limits what a hostile file can reach.
+**Consequences:** Scanned PDFs need OCR, which isn't included. The parsers still run in the app process; isolating
+them (a worker or a separate function) is a later hardening step. A .docx whose zip directory understates its
+size would pass the pre-check; the 10 MB upload cap bounds the damage.

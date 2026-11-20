@@ -142,9 +142,12 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
     save drafts in one transaction → update run.
   - **Done when:** unit tests cover success, invalid-then-valid, invalid-twice.
   - _2026-11-19 (Module 2): `runStage` with Zod + business rules, one retry with the errors, persist, run log; tests cover success, invalid-then-valid, invalid-twice and provider errors._
-- [ ] **PF-023 — Document upload + extraction** · Depends on: PF-015
+- [~] **PF-023 — Document upload + extraction** · Depends on: PF-015
   - PDF/DOCX/TXT ≤ 10 MB, MIME check, Supabase Storage, text extraction server-side, `source_documents` table.
   - **Done when:** an uploaded PDF's text is stored and visible in the project.
+  - *2026-11-20:* server-side extraction (ADR-033): PDF (`unpdf`), .docx (`mammoth`), text; checks before parsing
+    (type sniffing, 10 MB, 50 pages, zip-bomb pre-check); only text stored. 9 extraction tests with real files.
+    Left: upload a PDF in the app with `DATA_DRIVER=postgres`.
 - [x] **PF-024 — Discovery stage** · Depends on: PF-022
   - Prompt `src/ai/prompts/discovery.v1.md`; output: requirements (with evidence + type), actors, goals, constraints,
     clarifying questions, conflicts, ambiguity flags with a suggested measurable question.
