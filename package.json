@@ -18,7 +18,7 @@
     "eval": "vitest run --config vitest.eval.config.mts",
     "eval:quick": "EVAL_QUICK=1 vitest run --config vitest.eval.config.mts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node scripts/db-migrate.mjs",
     "db:check": "node scripts/db-check.mjs",
     "db:audit": "node scripts/db-audit.mjs",
     "env:supabase": "node scripts/use-supabase-project.mjs",

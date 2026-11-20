@@ -525,6 +525,15 @@ transactions); production in the database's region costs milliseconds. PF-018 de
 (local Supabase) removes the latency for development. The CSP still allows inline scripts (Next.js needs them without
 nonces); PF-019 moves to a nonce-based CSP.
 
+**Follow-up (2026-11-20, PF-070):** database connections now use TLS. postgres.js connects unencrypted unless asked,
+and no URL carried `sslmode`, so traffic to Supabase had been plain text (the password itself never crosses the wire:
+Postgres signs in with SCRAM). The Mumbai project began refusing plain connections, which surfaced it. `sslFor(url)`
+in `src/db/ssl.mjs` gives `ssl: "require"` for every remote host (off only for a database on this machine) and is
+used by the app's pool and the `db:*` scripts; drizzle-kit gets `sslmode=require`. `require` encrypts but doesn't
+check the server's certificate; checking it against Supabase's CA is PF-067. `db:migrate` now runs drizzle-orm's
+migrator (`scripts/db-migrate.mjs`, same bookkeeping table) because `drizzle-kit migrate` exited without printing the
+database's error.
+
 ### ADR-024 — Hosting region: Mumbai (PF-018)
 **Status:** ACCEPTED · 2026-11-19 · decided by the user ("move it to Mumbai"), on Claude's recommendation
 **Decision:**

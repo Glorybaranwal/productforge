@@ -1,6 +1,8 @@
 // `pnpm db:check` — can we reach the database with the password in .env.local, and what's in it?
 import postgres from "postgres";
 
+import { sslFor } from "../src/db/ssl.mjs";
+
 try {
   process.loadEnvFile(".env.local");
 } catch {
@@ -13,7 +15,13 @@ if (!url) {
   process.exit(1);
 }
 
-const sql = postgres(url, { prepare: false, max: 1, connect_timeout: 15, onnotice: () => {} });
+const sql = postgres(url, {
+  prepare: false,
+  max: 1,
+  connect_timeout: 15,
+  ssl: sslFor(url),
+  onnotice: () => {},
+});
 try {
   const [me] =
     await sql`select current_user as "user", current_setting('server_version') as version`;

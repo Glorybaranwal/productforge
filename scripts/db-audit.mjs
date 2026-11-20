@@ -2,6 +2,8 @@
 // probe runs in one transaction that is rolled back. Exits 1 if anything leaks.
 import postgres from "postgres";
 
+import { sslFor } from "../src/db/ssl.mjs";
+
 import { auditDataIsolation } from "./lib/data-audit.mjs";
 
 try {
@@ -15,7 +17,13 @@ if (!url) {
   process.exit(1);
 }
 
-const sql = postgres(url, { prepare: false, max: 1, connect_timeout: 15, onnotice: () => {} });
+const sql = postgres(url, {
+  prepare: false,
+  max: 1,
+  connect_timeout: 15,
+  ssl: sslFor(url),
+  onnotice: () => {},
+});
 const ROLLBACK = new Error("rollback");
 let report;
 try {

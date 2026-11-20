@@ -299,6 +299,11 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
 
 ---
 
+- [ ] **PF-067 — Verify the database's certificate** · Depends on: PF-018
+  - Connect with `verify-full` against Supabase's root CA (downloaded from the project's database settings and
+    shipped with the app) instead of `require`, so a machine pretending to be the database is refused.
+  - **Done when:** the app and `db:*` scripts connect with certificate checks on; a wrong CA fails clearly.
+
 ## Week 7 — Data into Postgres
 
 Every module moves from the demo store to Postgres behind its existing repository interface (ADR-022), as the

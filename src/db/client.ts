@@ -16,6 +16,7 @@ import postgres from "postgres";
 import { z } from "zod";
 
 import * as schema from "./schema";
+import { sslFor } from "./ssl.mjs";
 
 export type Db = PostgresJsDatabase<typeof schema>;
 export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -40,6 +41,8 @@ export function adminDb(): Db {
   if (!shared.db) {
     const client = postgres(url, {
       prepare: false,
+      // Encrypted on the wire; Supabase refuses plain connections (ADR-023).
+      ssl: sslFor(url),
       // A page reads in parallel; Supabase's pooler multiplexes these onto its own pool.
       max: 10,
       // Keep connections open between clicks: a new one costs several round trips (TCP, TLS,
