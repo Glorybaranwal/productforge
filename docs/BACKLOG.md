@@ -120,9 +120,11 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - _2026-11-20: done. `productforge-mumbai` (`wvbfqdgpvsihimfnfdei`) migrated (0000–0003), `db:audit` clean; measured in
     dev from India: project page 86–226 ms, dashboard 86 ms (were 2–7 s). `adminDb()` now reopens its pool when
     `DATABASE_URL` changes (a stale pool kept the old password after the switch)._
-- [ ] **PF-019 — Nonce-based CSP** · Depends on: PF-013
+- [x] **PF-019 — Nonce-based CSP** · Depends on: PF-013
   - Replace `'unsafe-inline'` scripts with per-request nonces set in `proxy.ts` (ADR-023).
   - **Done when:** the CSP has no `'unsafe-inline'` for scripts and every page still works.
+  - *2026-11-20:* per-request nonce from `proxy.ts`, `'strict-dynamic'`, no `'unsafe-inline'` for scripts (ADR-032).
+    Checked in Chrome on every project page: no CSP violations, client code works.
 
 ## Week 2 — AI discovery
 

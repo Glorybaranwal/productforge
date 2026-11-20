@@ -733,3 +733,22 @@ store out of Postgres mode.
 read and write in Postgres. A hard refusal proves that, where a fallback would hide it.
 **Consequences:** PF-064 (production deploy) is unblocked. Older discoveries show no run in the log. Running the
 app with `DATA_DRIVER=postgres` but without Supabase sign-in was already refused (ADR-022).
+
+### ADR-032 — Nonce-based Content Security Policy (PF-019)
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request
+**Decision:**
+- `proxy.ts` makes a fresh nonce per request and sets the CSP (`src/lib/csp.ts`) on the response and on the
+  request. Next.js reads it from the request and puts the nonce on its own scripts.
+- `script-src 'self' 'nonce-…' 'strict-dynamic'`: no `'unsafe-inline'`. A script runs only if it carries the
+  nonce or a nonce-bearing script loaded it. Development adds `'unsafe-eval'` for React Refresh. The other
+  directives are unchanged from ADR-023 (`frame-ancestors 'none'`, `object-src 'none'`, form posts only to
+  Supabase Auth and GitHub).
+- `style-src` keeps `'unsafe-inline'`: React `style` attributes need it, and styles can't run code.
+- The root layout calls `connection()`, so every page renders per request. A prebuilt static page couldn't carry
+  that request's nonce. The landing page and sign-in page are the only ones that lose static rendering; they're
+  small.
+- The CSP left the static headers in `next.config.ts`; the other security headers stay there.
+**Why:** Inline-script XSS is the attack a CSP exists to stop. With `'unsafe-inline'` an injected `<script>` would
+run; with a nonce it can't, because it can't know that request's nonce.
+**Consequences:** Every page is dynamic, a few ms per render. Checked in Chrome on all 8 project pages and the
+dashboard: no violations, and client code (forms, menus) works.
