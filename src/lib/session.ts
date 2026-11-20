@@ -8,6 +8,7 @@ import { z } from "zod";
 import { DEMO_USER, type Session } from "./auth";
 import { authDriver } from "./supabase/config";
 import { createSupabaseServerClient } from "./supabase/server";
+import { testSession } from "./test-session";
 
 const Claims = z.object({
   sub: z.uuid(),
@@ -39,7 +40,7 @@ export const getSession = cache(async (): Promise<Session | null> => {
     if (process.env.VERCEL_ENV === "production") {
       throw new Error("Demo mode can't serve production (ADR-011): configure Supabase sign-in");
     }
-    return DEMO_USER;
+    return testSession() ?? DEMO_USER;
   }
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getClaims();

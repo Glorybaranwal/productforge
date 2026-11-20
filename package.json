@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "echo \"test:e2e: Playwright is not set up yet (PF-060)\"",
+    "test:e2e": "playwright test",
     "eval": "vitest run --config vitest.eval.config.mts",
     "eval:quick": "EVAL_QUICK=1 vitest run --config vitest.eval.config.mts",
     "db:generate": "drizzle-kit generate",

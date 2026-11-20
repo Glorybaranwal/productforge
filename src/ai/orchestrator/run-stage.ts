@@ -1,5 +1,6 @@
 import type { z } from "zod";
 
+import { checkRunBudget } from "@/src/ai/orchestrator/budget";
 import { getLLMClient, LLMError, type LLMClient } from "@/src/ai/llm-client";
 import { loadPrompt } from "@/src/ai/prompts/load";
 import { zodFieldErrors } from "@/src/lib/errors";
@@ -45,6 +46,7 @@ export async function runStage<I, O>(
   const log = (step: RunEvent["step"], message: string) =>
     events.push({ at: nowIso(), step, message });
 
+  await checkRunBudget(sc.ctx);
   const input = await stage.loadContext(sc);
   const system = await (deps.loadSystemPrompt ?? loadPrompt)(stage.promptFile);
   const prompt = stage.renderPrompt(input);

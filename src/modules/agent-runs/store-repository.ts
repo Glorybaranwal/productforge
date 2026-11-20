@@ -50,6 +50,18 @@ export const storeAgentRuns: AgentRunRepository = {
     return state.agentRuns.find((r) => r.workspaceId === scope.workspace.id && r.id === id) ?? null;
   },
 
+  async usage(scope, { userSince, workspaceSince }) {
+    const state = await readState();
+    const mine = state.agentRuns.filter((r) => r.workspaceId === scope.workspace.id);
+    return {
+      userRuns: mine.filter((r) => r.createdBy === scope.session.userId && r.createdAt >= userSince)
+        .length,
+      workspaceTokens: mine
+        .filter((r) => r.createdAt >= workspaceSince)
+        .reduce((sum, r) => sum + r.tokensIn + r.tokensOut, 0),
+    };
+  },
+
   async latestForProject(scope, projectId, stage) {
     const state = await readState();
     const runs = state.agentRuns.filter(

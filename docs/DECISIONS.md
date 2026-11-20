@@ -791,3 +791,22 @@ the run and the stream are served by different server instances (Vercel), where 
 **Consequences:** A few extra writes per run and up to two reads a second per open page while a run is going.
 Model output isn't streamed token by token; the steps are coarse (prepare, ask, validate, retry, save).
 
+### ADR-035 — Hardening from the test plan: AI budget, log redaction, route matrix, lint rules
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request ("fix the gaps")
+**Decision:**
+- **AI budget (PF-062):** before every run, `checkRunBudget` reads the run log: a user may start 12 runs a minute
+  (`AI_RUNS_PER_USER_PER_MINUTE`), a workspace may use 2M tokens per UTC calendar month
+  (`AI_MONTHLY_TOKEN_BUDGET_PER_WORKSPACE`). Over either: 429 `RATE_LIMITED` with the reason. Counting from
+  `agent_runs` needs no new table and holds across Vercel instances. Live views: 5 open per user per server.
+- **Logs (PF-076):** `redact()` runs on every log line: secret-named keys masked, OpenAI/Supabase keys, JWTs and
+  bearer tokens masked anywhere, strings cut at 300 characters, errors reduced to name and message.
+- **Route matrix (PF-061):** one test finds every route on disk and calls it (a) as another workspace with this
+  workspace's ids — must answer 400 or 404 and never echo an id — and (b) as Developer and QA — must answer 403
+  except the member writes the earlier ADRs allow (ADR-014, ADR-027–029). New routes are covered without edits.
+  Tests switch users with `actAs()`, honoured only when `NODE_ENV=test`.
+- **Lint (PF-077):** import rules keep routes thin and the model out of the browser; `max-lines` warns at 300.
+**Why:** The test plan found these as the gaps between the rules in CLAUDE.md and what was enforced.
+**Consequences:** A burst of runs by one user (e.g. re-generating repeatedly) now waits a minute. The token
+budget counts tokens, not dollars; a dollar cap can be added when pricing per model is fixed. Story versioning is
+manager-only while PRD draft versions are open to members (ADR-014 vs ADR-028): kept as decided, flagged for review.
+

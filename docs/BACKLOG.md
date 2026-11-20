@@ -286,12 +286,20 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
 
 ## Week 6 — Quality and launch
 
-- [ ] **PF-060 — E2E test** · Depends on: PF-050
+- [~] **PF-060 — E2E test** · Depends on: PF-050
   - Playwright: sign up → project → discovery → clarify → PRD → backlog → export (model mocked).
-- [ ] **PF-061 — Role permissions** · Depends on: PF-042
+  - *2026-11-20:* Playwright config (demo mode, port 3100) + J1 (project, dumb-user and CSP checks) and J2
+    (discovery) specs written, not yet run: needs `@playwright/test` installed. Left: J3–J8 from the test plan.
+- [x] **PF-061 — Role permissions** · Depends on: PF-042
   - Only Owner/Admin/PM approve; Developer/QA edit drafts and comment. Tests per role.
-- [ ] **PF-062 — Rate limits + cost caps** · Depends on: PF-021
+  - *2026-11-20:* `route-matrix.test.ts` calls every write route as Developer and QA: 403 except the 9 member
+    writes the ADRs allow (sources, drafts, answers, PRD draft version, export). Same test: another workspace
+    gets 400/404 on every route with this workspace's ids and sees none of them (ADR-035).
+- [x] **PF-062 — Rate limits + cost caps** · Depends on: PF-021
   - Per-workspace request limit and monthly token budget; clear error when exceeded.
+  - *2026-11-20:* checked before every AI run from the run log (works across servers): 12 runs per user per
+    minute, 2M tokens per workspace per UTC month, both from env; 429 `RATE_LIMITED` with the reason. Live
+    views capped at 5 per user per server (ADR-035).
 - [ ] **PF-063 — Full eval report** · Depends on: PF-045
   - Run all fixtures; save `docs/EVAL_REPORT.md` with results against targets.
 - [ ] **PF-064 — Production deploy + demo seed** · Depends on: PF-016, PF-060
@@ -362,6 +370,24 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - *2026-11-20:* demo store refused when `DATA_DRIVER=postgres` (ADR-031); all Postgres-mode integration tests
     pass with the guard on; migration 0009 clears pre-PF-071 run links and validates the run foreign keys. Left:
     `db:migrate` on Mumbai and a click through every page.
+
+## Week 8 — Hardening (from the test plan, 2026-11-20)
+
+- [x] **PF-076 — Log redaction** · Depends on: PF-005
+  - The logger masks secret-named keys and credential-shaped values, cuts strings over 300 chars, reduces errors
+    to name + message.
+  - **Done when:** unit tests show keys, JWTs and long document text never reach a log line.
+- [x] **PF-077 — Architecture lint rules** · Depends on: PF-001
+  - ESLint: route handlers can't import repositories, the DB, stages or `openai`; UI can't import `src/ai`
+    (except the pure rule checkers) or the DB; files over 300 lines warn. Two routes moved to a run service.
+  - **Done when:** `pnpm lint` fails on a client file importing the LLM client.
+- [ ] **PF-078 — Rotate secrets before real data** **(ask first)** · Depends on: —
+  - Rotate the Supabase secret key, DB password and OpenAI key pasted in chat earlier (SEC-21); update
+    `.env.local` and Vercel. Done by the user in the dashboards.
+  - **Done when:** old keys are revoked and the app still signs in and runs discovery.
+- [ ] **PF-079 — Split the PRD workspace component** · Depends on: —
+  - `components/prd/prd-workspace.tsx` is 374 lines; move the toolbar and approve panel to their own files.
+  - **Done when:** no `max-lines` warning.
 
 ## Later (not scheduled)
 
