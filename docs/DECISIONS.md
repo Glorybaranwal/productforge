@@ -718,3 +718,18 @@ approved requirements, so a decided one must stay as it was decided.
 **Consequences:** `technical_tasks.sprint_id` stays unused: placements are by story code (ADR-017), so there is no
 foreign key to add. Plans and changes made before today stay in the demo file. PF-075 can now take the file
 store out of Postgres mode.
+
+### ADR-031 — Postgres-only mode (PF-075)
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request
+**Decision:**
+- With `DATA_DRIVER=postgres`, `getDataStore()` throws (`STORE_OFF`) instead of opening the demo file. Every
+  module now has a Postgres repository (PF-015, PF-070–PF-074), so nothing should reach the file. If something
+  does, it fails loudly in tests and in dev instead of silently writing to disk. Demo mode keeps the file (or
+  memory in tests) as before.
+- Migration `0009_validate_run_links.sql` makes `discoveries.agent_run_id` nullable, clears `agent_run_id` on
+  rows whose run never reached Postgres (rows written before PF-071; the rows themselves are kept), and validates
+  the three foreign keys added `NOT VALID` in 0005.
+**Why:** Vercel's functions have a read-only file system (only `/tmp`, per instance), so production needs every
+read and write in Postgres. A hard refusal proves that, where a fallback would hide it.
+**Consequences:** PF-064 (production deploy) is unblocked. Older discoveries show no run in the log. Running the
+app with `DATA_DRIVER=postgres` but without Supabase sign-in was already refused (ADR-022).

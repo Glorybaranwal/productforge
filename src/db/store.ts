@@ -22,7 +22,14 @@ function defaultStore(): DataStore {
   return driver === "memory" ? createMemoryStore() : createFileStore();
 }
 
+/** Thrown when anything reaches for the demo store while Postgres holds the data (PF-075, ADR-031). */
+export const STORE_OFF = "The demo store is off: DATA_DRIVER=postgres keeps all data in Postgres";
+
 export function getDataStore(): DataStore {
+  // Postgres-only mode: nothing may read or write the file, so the app runs on a read-only disk.
+  if (typeof process !== "undefined" && process.env.DATA_DRIVER === "postgres") {
+    throw new Error(STORE_OFF);
+  }
   shared.store ??= defaultStore();
   return shared.store;
 }

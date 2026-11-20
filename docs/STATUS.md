@@ -6,8 +6,8 @@
 
 - **Phase:** Data into Postgres (Week 7) — each module moves from the demo store to Postgres behind its repository
 - **In progress:** PF-010 (local Supabase via the CLI), PF-050 (Jira test import)
-- **Next up:** PF-075 (Postgres-only mode) then
-  production (PF-064)
+- **In progress:** PF-075 (Postgres-only mode; code done on `m0-platform`, waiting on CI + `db:migrate`)
+- **Next up:** production deploy (PF-064)
 - **Live preview:** https://claude.ai/artifact/UAKA9Kf7A8vRiXNyGbhkWo
 - **Blockers:** tests can't run inside Claude's link to the Mac, so `pnpm test` runs on the developer's machine and in CI (GitHub Actions); PF-050's done-when needs a Jira admin to import the CSV into a company-managed Jira test project
 - **Open decisions:** none
@@ -32,6 +32,7 @@ Newest first. One row per session.
 
 | Date | Tasks touched | Outcome | Notes for next session |
 | --- | --- | --- | --- |
+| 2026-11-20 | PF-075 | Postgres-only mode (ADR-031): `getDataStore()` throws when `DATA_DRIVER=postgres`, so nothing can touch the file; every Postgres integration suite passes with the guard on. Migration 0009: `discoveries.agent_run_id` nullable, pre-PF-071 run links cleared (rows kept), run foreign keys validated. Branch `m0-platform` | Push, PR + merge; `db:migrate`; click every page; close PF-075 → PF-064 unblocked |
 | 2026-11-20 | PF-074 | Sprints and requirement changes in Postgres (ADR-030): `sprint_settings`, `sprints`, `sprint_items`, `requirement_changes`, `impact_reviews` (members read, managers write, decided changes frozen, marks once), approve-change as one unit of work (fixed: it wrote a name into a uuid column), migration 0008. PGlite `planning-data.test.ts` 9/9; 47 suites green. Branch `m5-sprint-export` | Closed after the Mumbai check (plan, move, CR-01 approve → FR-08 v2, review mark). Next: PF-075 on `m0-platform` |
 | 2026-11-20 | PF-073 | Backlog in Postgres (ADR-029): `epics`, `stories` (versioned), `acceptance_criteria`, `technical_tasks`; links as code arrays (GIN index); RLS: members edit drafts, managers create and change statuses, approved stories and children frozen, epics/stories never deleted; multi-row writes in one transaction; migration 0007. PGlite `backlog-data.test.ts` 8/8; 45 suites green. Branch `m3-stories` | Closed PF-073 + PF-033 after the Mumbai check (generate → Gate 3 → frozen → v2 → traceability 98). Fixed the recurring first-load CONNECT_TIMEOUT: a connection that times out while opening is retried once (nothing ran yet). Next: PF-074 |
 | 2026-11-20 | PF-072 | PRDs in Postgres (ADR-028): `prds` (JSONB content per version; members edit drafts, only managers approve, approved versions frozen, never deleted, one open draft per project), approval + audit in one unit of work, migration 0006. PGlite `prd-data.test.ts` 7/7; 44 suites green in Claude's VM. Branch `m2-prd` | Closed after the Mumbai check (generate → edit → approve → frozen → v2). Next: PF-073 on branch `m3-stories` |
