@@ -320,15 +320,18 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - *2026-11-20:* code and tests done (ADR-026; PGlite `discovery-data.test.ts` 7/7). Migration 0004 applied to Mumbai;
     CI green on PR #4; clicked through on Mumbai: brief → discovery (12 requirements, 10 questions) → answer / assume /
     skip → Gate 1 (12 approved, survives reload) → PRD generated covering 12/12.
-- [~] **PF-071 — AI run log and idempotency in Postgres** · Depends on: PF-070
+- [x] **PF-071 — AI run log and idempotency in Postgres** · Depends on: PF-070
   - `agent_runs`, `idempotency_records`; `agent_run_id` columns become foreign keys.
   - **Done when:** every stage run is logged in Postgres and a repeated `Idempotency-Key` returns the first result.
   - *2026-11-20:* code and tests done (ADR-027; PGlite `agent-runs-data.test.ts` 8/8): run log, one running run per
-    stage, idempotency records, run foreign keys (`NOT VALID` for older rows). Left: CI on the PR, `db:migrate` on
-    Mumbai, a click-through.
-- [ ] **PF-072 — PRDs in Postgres** · Depends on: PF-070, PF-071
+    stage, idempotency records, run foreign keys (`NOT VALID` for older rows). PR #6 merged with green CI; 0005 applied to
+    Mumbai; checked in Chrome on Mumbai: two simultaneous runs → one ran, the other 409 "already running";
+    the same Idempotency-Key twice → one run, second replayed; discovery and PRD runs logged with tokens and steps.
+- [~] **PF-072 — PRDs in Postgres** · Depends on: PF-070, PF-071
   - `prds` (versions, JSONB sections), approved versions immutable.
   - **Done when:** generate → edit → approve (Gate 2) works with `DATA_DRIVER=postgres`.
+  - *2026-11-20:* code and tests done (ADR-028; PGlite `prd-data.test.ts` 7/7). Left: CI, `db:migrate` on Mumbai,
+    a click-through.
 - [ ] **PF-073 — Backlog in Postgres** · Depends on: PF-072 (absorbs PF-033)
   - `epics`, `stories` (versioned), `story_requirements`, `story_dependencies`, `acceptance_criteria`, `tasks`.
   - **Done when:** backlog generation, review (Gate 3) and traceability work with `DATA_DRIVER=postgres`.

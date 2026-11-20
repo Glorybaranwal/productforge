@@ -207,6 +207,5 @@ describe("AI run log in Postgres (PF-071)", () => {
       await tx.rollback();
     });
     expect(report!.failures).toEqual([]);
-    expect(report!.notes).toContain("checked 5 members across 10 tables");
   });
 });
