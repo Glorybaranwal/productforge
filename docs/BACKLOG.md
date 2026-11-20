@@ -327,11 +327,11 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
     stage, idempotency records, run foreign keys (`NOT VALID` for older rows). PR #6 merged with green CI; 0005 applied to
     Mumbai; checked in Chrome on Mumbai: two simultaneous runs → one ran, the other 409 "already running";
     the same Idempotency-Key twice → one run, second replayed; discovery and PRD runs logged with tokens and steps.
-- [~] **PF-072 — PRDs in Postgres** · Depends on: PF-070, PF-071
+- [x] **PF-072 — PRDs in Postgres** · Depends on: PF-070, PF-071
   - `prds` (versions, JSONB sections), approved versions immutable.
   - **Done when:** generate → edit → approve (Gate 2) works with `DATA_DRIVER=postgres`.
-  - *2026-11-20:* code and tests done (ADR-028; PGlite `prd-data.test.ts` 7/7). Left: CI, `db:migrate` on Mumbai,
-    a click-through.
+  - *2026-11-20:* code and tests done (ADR-028; PGlite `prd-data.test.ts` 7/7). Checked on Mumbai in Chrome: generate
+    → edit (ai_edited) → approve → edit refused (409) → v2 from v1, asking again returns the same draft.
 - [ ] **PF-073 — Backlog in Postgres** · Depends on: PF-072 (absorbs PF-033)
   - `epics`, `stories` (versioned), `story_requirements`, `story_dependencies`, `acceptance_criteria`, `tasks`.
   - **Done when:** backlog generation, review (Gate 3) and traceability work with `DATA_DRIVER=postgres`.
