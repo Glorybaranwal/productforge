@@ -34,7 +34,7 @@ async function load(
   projectId: string,
 ): Promise<{ b: BacklogContext; rows: PlanRows }> {
   const b = await loadBacklog(ctx, projectId);
-  return { b, rows: await sprintRepository.load(ctx.workspace.id, projectId) };
+  return { b, rows: await sprintRepository.load(ctx, projectId) };
 }
 
 async function audit(
@@ -53,7 +53,7 @@ async function refreshAutoGoals(ctx: WorkspaceContext, projectId: string): Promi
   for (const sp of board.sprints) {
     const goal = autoGoal(sp.stories);
     if (sp.autoGoal && sp.goal !== goal) {
-      await sprintRepository.updateSprint(ctx.workspace.id, sp.id, { goal, updatedAt: nowIso() });
+      await sprintRepository.updateSprint(ctx, sp.id, { goal, updatedAt: nowIso() });
       sp.goal = goal;
     }
   }
@@ -75,7 +75,7 @@ async function ensureSettings(
     startDate: nextMonday(now.slice(0, 10)),
     updatedAt: now,
   };
-  await sprintRepository.saveSettings(settings, null);
+  await sprintRepository.saveSettings(ctx, settings, null);
   return settings;
 }
 
@@ -123,7 +123,7 @@ export async function saveSprintSettings(
   };
   const changedVelocity =
     before && before.velocity !== row.velocity ? { from: before.velocity } : null;
-  await sprintRepository.saveSettings(row, changedVelocity);
+  await sprintRepository.saveSettings(ctx, row, changedVelocity);
   await audit(ctx, projectId, "sprints.settings_updated", {
     velocity: { from: before?.velocity ?? null, to: row.velocity },
     startDate: { from: before?.startDate ?? null, to: row.startDate },
@@ -198,7 +198,7 @@ export async function planProjectSprints(
           updatedAt: now,
         };
   });
-  await sprintRepository.replacePlan(ctx.workspace.id, projectId, sprints, items);
+  await sprintRepository.replacePlan(ctx, projectId, sprints, items);
   await audit(ctx, projectId, "sprints.planned", {
     sprints: {
       from: rows.sprints.length || null,
@@ -252,14 +252,7 @@ export async function moveStoryToSprint(
     }
     if (!target) throw new AppError("VALIDATION_ERROR", `There's no sprint ${move.sprintNumber}`);
   }
-  await sprintRepository.moveStory(
-    ctx.workspace.id,
-    projectId,
-    story.code,
-    target,
-    create,
-    nowIso(),
-  );
+  await sprintRepository.moveStory(ctx, projectId, story.code, target, create, nowIso());
   await audit(ctx, projectId, "sprint.story_moved", {
     story: { from: null, to: story.code },
     sprint: { from, to: move.sprintNumber },
@@ -275,7 +268,7 @@ export async function updateSprint(
 ): Promise<SprintBoard> {
   requireRole(ctx.role, MANAGER_ROLES, "edit sprints");
   const patch = parseOrThrow(SprintUpdate, input);
-  const sprint = await sprintRepository.findSprint(ctx.workspace.id, sprintId);
+  const sprint = await sprintRepository.findSprint(ctx, sprintId);
   if (!sprint) throw new AppError("NOT_FOUND", "Sprint not found");
   const next: Partial<Sprint> = { updatedAt: nowIso() };
   const diff: Record<string, unknown> = { sprint: { from: null, to: sprint.number } };
@@ -289,7 +282,7 @@ export async function updateSprint(
     diff.capacity = { from: sprint.capacityPoints, to: patch.capacityPoints };
   }
   if (Object.keys(diff).length > 1) {
-    await sprintRepository.updateSprint(ctx.workspace.id, sprintId, next);
+    await sprintRepository.updateSprint(ctx, sprintId, next);
     await audit(ctx, sprint.projectId, "sprint.updated", diff);
   }
   return refreshAutoGoals(ctx, sprint.projectId);

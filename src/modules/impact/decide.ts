@@ -1,4 +1,5 @@
 /** Deciding on a change request and reviewing what it flagged (PF-053). */
+import { unitOfWork } from "@/src/db/scope";
 import { MANAGER_ROLES, requireRole } from "@/src/lib/auth";
 import { AppError, parseOrThrow } from "@/src/lib/errors";
 import { newId, nowIso } from "@/src/lib/ids";
@@ -39,42 +40,49 @@ export async function approveChange(
         `${change.requirementCode} changed after ${cr} was proposed — discard it and propose again`,
       );
   }
-  const now = nowIso();
-  const snapshot = (change.after ?? change.before)!;
-  const withdraw = change.kind === "withdraw";
-  const version = await requirementRepository.insertVersion(ctx, {
-    id: newId(),
-    workspaceId: ctx.workspace.id,
-    projectId: change.projectId,
-    code: change.requirementCode,
-    version: (change.fromVersion ?? 0) + 1,
-    ...snapshot,
-    sourceQuote: null,
-    rationale: `${withdraw ? "Withdrawn" : change.kind === "add" ? "Added" : "Changed"} in ${cr}: ${change.reason}`,
-    sourceId: null,
-    status: withdraw ? "REJECTED" : "APPROVED",
-    origin: "human",
-    agentRunId: null,
-    createdAt: now,
-    updatedAt: now,
-    approvedBy: withdraw ? null : ctx.session.name,
-    approvedAt: withdraw ? null : now,
-  });
-  const affected = affectedOf(
-    candidatesFor({ kind: change.kind, requirementCode: version.code }, b, plan),
-  );
-  const approved = await impactRepository.update(ctx.workspace.id, change.id, {
-    status: "APPROVED",
-    requirementCode: version.code,
-    toVersion: version.version,
-    affected: change.kind === "add" ? { prd: affected.prd, stories: [] } : affected,
-    decidedBy: ctx.session.name,
-    decidedAt: now,
-  });
-  if (!approved) throw new AppError("CONFLICT", `${cr} can no longer be approved`);
-  await audit(ctx, approved, "change.approved", {
-    version: { from: change.fromVersion, to: version.version },
-    flagged: { from: null, to: approved.affected.stories.length + (approved.affected.prd ? 1 : 0) },
+  // The new requirement version, the decided change and its audit entry: all saved or none.
+  await unitOfWork(ctx, async (ctx) => {
+    const now = nowIso();
+    const snapshot = (change.after ?? change.before)!;
+    const withdraw = change.kind === "withdraw";
+    const version = await requirementRepository.insertVersion(ctx, {
+      id: newId(),
+      workspaceId: ctx.workspace.id,
+      projectId: change.projectId,
+      code: change.requirementCode,
+      version: (change.fromVersion ?? 0) + 1,
+      ...snapshot,
+      sourceQuote: null,
+      rationale: `${withdraw ? "Withdrawn" : change.kind === "add" ? "Added" : "Changed"} in ${cr}: ${change.reason}`,
+      sourceId: null,
+      status: withdraw ? "REJECTED" : "APPROVED",
+      origin: "human",
+      agentRunId: null,
+      createdAt: now,
+      updatedAt: now,
+      // Like Gate 1, the requirement records who approved it by user id.
+      approvedBy: withdraw ? null : ctx.session.userId,
+      approvedAt: withdraw ? null : now,
+    });
+    const affected = affectedOf(
+      candidatesFor({ kind: change.kind, requirementCode: version.code }, b, plan),
+    );
+    const approved = await impactRepository.update(ctx, change.id, {
+      status: "APPROVED",
+      requirementCode: version.code,
+      toVersion: version.version,
+      affected: change.kind === "add" ? { prd: affected.prd, stories: [] } : affected,
+      decidedBy: ctx.session.name,
+      decidedAt: now,
+    });
+    if (!approved) throw new AppError("CONFLICT", `${cr} can no longer be approved`);
+    await audit(ctx, approved, "change.approved", {
+      version: { from: change.fromVersion, to: version.version },
+      flagged: {
+        from: null,
+        to: approved.affected.stories.length + (approved.affected.prd ? 1 : 0),
+      },
+    });
   });
   return result(ctx, change.id, false);
 }
@@ -87,7 +95,7 @@ export async function discardChange(
   const change = await find(ctx, changeId);
   requireProposed(change);
   const at = nowIso();
-  const done = await impactRepository.update(ctx.workspace.id, change.id, {
+  const done = await impactRepository.update(ctx, change.id, {
     status: "REJECTED",
     decidedBy: ctx.session.name,
     decidedAt: at,
@@ -115,7 +123,7 @@ export async function markReviewed(
   if (!state) throw new AppError("NOT_FOUND", `${cr} didn't flag ${ref}`);
   if (state.state !== "pending")
     throw new AppError("CONFLICT", `${ref} doesn't need review for ${cr} any more`);
-  await impactRepository.addReview({
+  await impactRepository.addReview(ctx, {
     workspaceId: ctx.workspace.id,
     projectId: change.projectId,
     changeId: change.id,

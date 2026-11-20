@@ -94,7 +94,7 @@ export function impactStage(
     },
     businessRules: impactRules,
     async persist(output, _i, { ctx }, run) {
-      await impactRepository.update(ctx.workspace.id, changeId, {
+      await impactRepository.update(ctx, changeId, {
         impact: output,
         agentRunId: run.id,
       });

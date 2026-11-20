@@ -93,10 +93,23 @@ export const isUniqueViolation = (err: unknown, constraint: string) => {
 /** A transaction slower than this is logged, so performance regressions show up (ADR-023). */
 export const SLOW_TX_MS = 1500;
 
+/**
+ * A connection that times out while opening (TCP, TLS or sign-in) never started the transaction, so
+ * it's safe to try once more. Seen on the first page after a restart, when a render opens several
+ * encrypted connections at once and one stalls in its handshake.
+ */
+const isConnectTimeout = (err: unknown) => pgError(err)?.code === "CONNECT_TIMEOUT";
+
 async function run<T>(scope: Scope, fn: (tx: Tx) => Promise<T>): Promise<T> {
   const started = performance.now();
   try {
-    return await runAsUser(dbSession(scope.session), fn);
+    try {
+      return await runAsUser(dbSession(scope.session), fn);
+    } catch (err) {
+      if (!isConnectTimeout(err)) throw err;
+      logger.warn("Database connection timed out while opening; retrying once");
+      return await runAsUser(dbSession(scope.session), fn);
+    }
   } catch (err) {
     if (isRlsDenial(err)) throw new AppError("FORBIDDEN", "You don't have access to do that");
     throw err;

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { EVIDENCE, REQUIREMENT_TYPES } from "@/src/modules/requirements/schema";
-import { RequirementCode, StoryCode } from "@/src/modules/stories/schema";
+import { EVIDENCE, REQUIREMENT_TYPES } from "../requirements/schema";
+import { RequirementCode, StoryCode } from "../stories/schema";
 
 /** What a change request does to an approved requirement (PF-053, ADR-018). */
 export const CHANGE_KINDS = ["modify", "add", "withdraw"] as const;

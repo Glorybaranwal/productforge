@@ -70,12 +70,11 @@ export function summarizePrd(gate1Passed: boolean, versions: Prd[]): PrdStatus {
 
 async function loadBasics(ctx: WorkspaceContext, projectId: string) {
   await getProject(ctx, projectId);
-  const ws = ctx.workspace.id;
   const [discovery, requirements, versions, changes] = await Promise.all([
     discoveryRepository.get(ctx, projectId),
     requirementRepository.listByProject(ctx, projectId),
     prdRepository.listByProject(ctx, projectId),
-    impactRepository.load(ws, projectId),
+    impactRepository.load(ctx, projectId),
   ]);
   const approvedPrd = [...versions].reverse().find((v) => v.status === "APPROVED") ?? null;
   return {

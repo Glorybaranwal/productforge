@@ -695,3 +695,26 @@ without rewriting links on every new version.
 **Consequences:** There's no database-level foreign key from a story to a requirement; integrity comes from the
 validator, as before. `technical_tasks.sprint_id` becomes a foreign key when sprints move (PF-074). Backlogs made
 before today stay in the demo file and are generated again after the switch.
+
+### ADR-030 — Sprints and requirement changes in Postgres (PF-074)
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request
+**Decision:**
+- **Tables** (migration `0008_planning_and_changes.sql`): `sprint_settings` (one row per project), `sprints`,
+  `sprint_items` (placements by story code, keyed by project + story, cascading with their sprint),
+  `requirement_changes` (CR numbers per project, JSONB snapshots, affected items and impact output) and
+  `impact_reviews` (one mark per change and item).
+- **Exports need no table:** every export is already an audit entry (`*.exported`), and the audit log has been in
+  Postgres since PF-015.
+- **RLS:** members read. Only owners, admins and PMs write, as the services already require. A decided change
+  (APPROVED or REJECTED) never changes. A review mark is written once. Signed-in users can't delete settings or
+  changes, or update or delete review marks.
+- **Approving a change is one unit of work:** the requirement's next version, the decided change and the audit
+  entry are saved together. The new requirement version records the approver's user id, as Gate 1 does. Before
+  this it recorded the name, which the `requirements.approved_by` uuid column would have rejected.
+- CR numbers come from `max + 1` under the project lock. A re-plan replaces sprints and placements in one
+  transaction.
+**Why:** These are the last module data in the demo file. Change requests are the audit trail for edits to
+approved requirements, so a decided one must stay as it was decided.
+**Consequences:** `technical_tasks.sprint_id` stays unused: placements are by story code (ADR-017), so there is no
+foreign key to add. Plans and changes made before today stay in the demo file. PF-075 can now take the file
+store out of Postgres mode.

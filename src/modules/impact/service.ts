@@ -128,7 +128,7 @@ export async function proposeChange(
         }
       }
       const candidates = candidatesFor({ kind: p.kind, requirementCode: code }, b, plan);
-      const row = await impactRepository.insert({
+      const row = await impactRepository.insert(ctx, {
         id: newId(),
         workspaceId: ws,
         projectId,
@@ -152,7 +152,7 @@ export async function proposeChange(
       await analyze(ctx, row, b, candidates, deps);
       return row;
     },
-    (id) => impactRepository.find(ws, id),
+    (id) => impactRepository.find(ctx, id),
   );
   return result(ctx, change.id, replayed);
 }
@@ -168,7 +168,7 @@ export async function reanalyzeChange(
   requireProposed(change);
   const { b, plan } = await load(ctx, change.projectId);
   const candidates = candidatesFor(change, b, plan);
-  const fresh = await impactRepository.update(ctx.workspace.id, change.id, {
+  const fresh = await impactRepository.update(ctx, change.id, {
     affected: affectedOf(candidates),
   });
   await analyze(ctx, fresh ?? change, b, candidates, deps);
