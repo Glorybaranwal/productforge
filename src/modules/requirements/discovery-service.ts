@@ -56,13 +56,12 @@ export async function getDiscoveryState(
   projectId: string,
 ): Promise<DiscoveryState> {
   await getProject(ctx, projectId);
-  const ws = ctx.workspace.id;
   const [sources, discovery, requirements, questions, latestRun] = await Promise.all([
     sourceRepository.listByProject(ctx, projectId),
     discoveryRepository.get(ctx, projectId),
     requirementRepository.listByProject(ctx, projectId),
     questionRepository.listByProject(ctx, projectId),
-    agentRunRepository.latestForProject(ws, projectId, "discovery"),
+    agentRunRepository.latestForProject(ctx, projectId, "discovery"),
   ]);
   return {
     sources,
@@ -120,7 +119,7 @@ export async function runDiscovery(
     `discovery:${projectId}`,
     idempotencyKey,
     () => runStage(discoveryStage, { ctx, projectId }, deps),
-    (id) => agentRunRepository.findById(ctx.workspace.id, id),
+    (id) => agentRunRepository.findById(ctx, id),
   );
   if (!replayed) {
     await recordAudit(ctx, {

@@ -39,9 +39,12 @@ describe("table privileges (ADR-023)", () => {
   it("gives signed-in users only what the policies use; the audit trail is insert-only", async () => {
     const write = ["DELETE", "INSERT", "SELECT", "UPDATE"];
     expect(await privileges("authenticated")).toEqual({
+      // The run log is never deleted; idempotency records are never changed (ADR-027).
+      agent_runs: ["INSERT", "SELECT", "UPDATE"],
       audit_logs: ["INSERT", "SELECT"],
       clarifying_questions: write,
       discoveries: write,
+      idempotency_records: ["INSERT", "SELECT"],
       projects: write,
       requirements: write,
       source_documents: write,

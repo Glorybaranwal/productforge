@@ -70,13 +70,25 @@ const dbSession = (session: Session): DbSession => ({
   email: session.email || null,
 });
 
-/** Postgres refused a write under RLS: the app's own role check should have caught it first. */
-function isRlsDenial(err: unknown): boolean {
+// postgres.js names the constraint `constraint_name`; PGlite (tests) names it `constraint`.
+type PgErrorFields = { code?: unknown; constraint_name?: unknown; constraint?: unknown };
+
+/** The Postgres error inside a driver or Drizzle error, if there is one. */
+function pgError(err: unknown): PgErrorFields | null {
   for (let e = err; e && typeof e === "object"; e = (e as { cause?: unknown }).cause) {
-    if ((e as { code?: unknown }).code === "42501") return true;
+    if (typeof (e as PgErrorFields).code === "string") return e as PgErrorFields;
   }
-  return false;
+  return null;
 }
+
+/** Postgres refused a write under RLS: the app's own role check should have caught it first. */
+const isRlsDenial = (err: unknown) => pgError(err)?.code === "42501";
+
+/** The write broke the named unique constraint or index. */
+export const isUniqueViolation = (err: unknown, constraint: string) => {
+  const e = pgError(err);
+  return e?.code === "23505" && (e.constraint_name ?? e.constraint) === constraint;
+};
 
 /** A transaction slower than this is logged, so performance regressions show up (ADR-023). */
 export const SLOW_TX_MS = 1500;

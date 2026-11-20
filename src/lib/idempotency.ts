@@ -20,13 +20,13 @@ export async function withIdempotency<T extends { id: string }>(
   load: (id: string) => Promise<T | null>,
 ): Promise<{ result: T; replayed: boolean }> {
   if (key) {
-    const existing = await agentRunRepository.findIdempotent(ctx.workspace.id, scope, key);
+    const existing = await agentRunRepository.findIdempotent(ctx, scope, key);
     const previous = existing && (await load(existing.resultId));
     if (previous) return { result: previous, replayed: true };
   }
   const result = await work();
   if (key) {
-    await agentRunRepository.saveIdempotent({
+    await agentRunRepository.saveIdempotent(ctx, {
       workspaceId: ctx.workspace.id,
       scope,
       key,

@@ -7,7 +7,7 @@ import { currentContext } from "@/src/modules/workspaces/service";
 export const GET = withErrors(
   async (_request: Request, { params }: { params: Promise<{ id: string }> }) => {
     const ctx = await currentContext();
-    const run = await agentRunRepository.findById(ctx.workspace.id, (await params).id);
+    const run = await agentRunRepository.findById(ctx, (await params).id);
     if (!run) throw new AppError("NOT_FOUND", "Run not found");
     return Response.json({ run });
   },

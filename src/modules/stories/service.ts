@@ -30,7 +30,7 @@ const STAGES = ["story", "qa", "task"] as const;
 
 async function latestRuns(ctx: WorkspaceContext, projectId: string): Promise<AgentRun[]> {
   const runs = await Promise.all(
-    STAGES.map((stage) => agentRunRepository.latestForProject(ctx.workspace.id, projectId, stage)),
+    STAGES.map((stage) => agentRunRepository.latestForProject(ctx, projectId, stage)),
   );
   return runs.filter((r): r is AgentRun => r !== null);
 }
@@ -117,9 +117,7 @@ async function idempotentPipeline(
     },
     async (id) => {
       const ids = id === "none" ? [] : id.split(",");
-      const runs = await Promise.all(
-        ids.map((r) => agentRunRepository.findById(ctx.workspace.id, r)),
-      );
+      const runs = await Promise.all(ids.map((r) => agentRunRepository.findById(ctx, r)));
       return { id, runs: runs.filter((r): r is AgentRun => r !== null) };
     },
   );
