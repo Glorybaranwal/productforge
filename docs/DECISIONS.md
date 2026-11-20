@@ -772,3 +772,22 @@ story simple. Validating before parsing limits what a hostile file can reach.
 **Consequences:** Scanned PDFs need OCR, which isn't included. The parsers still run in the app process; isolating
 them (a worker or a separate function) is a later hardening step. A .docx whose zip directory understates its
 size would pass the pre-check; the 10 MB upload cap bounds the damage.
+
+### ADR-034 — Live run progress: save steps as they happen, stream them per project (PF-027)
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request
+**Decision:**
+- The stage runner saves the run's steps to `agent_runs.events` as they happen (after "asking the model", after
+  a failed or passed validation), not only at the end. A failed progress save is logged and never fails the run.
+- `GET /api/projects/:id/runs/live?stages=discovery` is a Server-Sent Events stream of `progress` events
+  (`runId, stage, step, message, at`) for runs of those stages that started at most 5 s before the page asked.
+  It replaces the planned `GET /api/agent-runs/:id/stream`: generation requests return only when the run ends,
+  so the page doesn't know the run id while it's running.
+- The stream polls the run log every 500 ms (one indexed query per stage) and stops when the page closes it or
+  after 5 minutes. Same access check as the project (`getProject`, RLS in Postgres).
+- The discovery, PRD and backlog pages open the stream just before they start a run, show the latest step under
+  the button (`aria-live="polite"`), and close it when the run's request returns.
+**Why:** Runs take 10–60 s with a real model; a spinner with no news looks stuck. Polling the database works when
+the run and the stream are served by different server instances (Vercel), where an in-memory emitter wouldn't.
+**Consequences:** A few extra writes per run and up to two reads a second per open page while a run is going.
+Model output isn't streamed token by token; the steps are coarse (prepare, ask, validate, retry, save).
+

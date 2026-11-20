@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { useAction } from "@/components/discovery/use-action";
+import { RunProgressNote } from "@/components/runs/run-progress-note";
+import { useRunProgress } from "@/components/runs/use-run-progress";
 import { PrdReviewBanner } from "@/components/impact/review-flags";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -136,6 +138,7 @@ type ToolbarProps = {
 
 function Toolbar({ project, state, selected, onSelect, mode, onMode, canManage }: ToolbarProps) {
   const generate = useAction();
+  const progress = useRunProgress(project.id, ["prd"]);
   const newVersion = useAction();
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -147,6 +150,7 @@ function Toolbar({ project, state, selected, onSelect, mode, onMode, canManage }
   async function run() {
     setConfirmRegenerate(false);
     setRunError(null);
+    progress.start();
     const result = await generate.run(() =>
       apiRequest<{ status: string; error: string | null }>(
         `/api/projects/${project.id}/prd/generate`,
@@ -156,6 +160,7 @@ function Toolbar({ project, state, selected, onSelect, mode, onMode, canManage }
         },
       ),
     );
+    progress.stop();
     if (result?.status === "failed") setRunError(result.error ?? "The AI step failed.");
   }
 
@@ -244,6 +249,7 @@ function Toolbar({ project, state, selected, onSelect, mode, onMode, canManage }
         )}
       </div>
       <div className="w-full space-y-1 text-xs text-muted-foreground empty:hidden">
+        <RunProgressNote busy={generate.busy} message={progress.message} />
         {state.latestRun && (
           <p data-testid="latest-prd-run">
             Last run {formatDateTime(state.latestRun.createdAt)} ·{" "}

@@ -74,6 +74,21 @@ export async function runStage<I, O>(
     finishedAt: null,
   });
 
+  /**
+   * Saves the steps so far, so the page can show them while the run is going (PF-027). Progress is
+   * best-effort: a failed save never fails the run.
+   */
+  const saveProgress = async () => {
+    try {
+      await agentRunRepository.update(sc.ctx, run.id, {
+        events: [...events],
+        attempts: totals.attempts,
+      });
+    } catch (err) {
+      logger.warn("Couldn't save run progress", { runId: run.id, error: String(err) });
+    }
+  };
+
   const totals = {
     attempts: 0,
     tokensIn: 0,
@@ -101,6 +116,7 @@ export async function runStage<I, O>(
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       totals.attempts = attempt;
       log("model", `Attempt ${attempt}: asking the model`);
+      await saveProgress();
       const result = await llm.generateStructured({
         name: stage.name,
         system,
@@ -122,6 +138,7 @@ export async function runStage<I, O>(
 
       if (parsed.success && problems.length === 0) {
         log("validate", "Output matches the schema and passes the business rules");
+        await saveProgress();
         await stage.persist(parsed.data, input, sc, run);
         log("persist", "Saved results as drafts");
         return await finish("succeeded", null);

@@ -163,8 +163,8 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - Answer / skip / mark-as-assumption each question → re-run discovery with answers → "Confirm requirements".
   - **Done when:** confirmed requirements are `APPROVED` and audit-logged.
   - _2026-11-19 (Module 2): answer / skip / assume, re-run keeps your edits, Gate 1 blocked while questions are open; confirmation approves and audit-logs._
-- [ ] **PF-027 — SSE progress** · Depends on: PF-022
-  - `GET /api/agent-runs/:id/stream`; UI shows stage progress and errors.
+- [x] **PF-027 — SSE progress** · Depends on: PF-022
+  - `GET /api/projects/:id/runs/live?stages=…` (SSE; per project, not per run — see ADR-034); UI shows stage progress and errors.
   - **Done when:** progress events appear in the UI during a run.
 - [x] **PF-028 — Eval runner v1** · Depends on: PF-004, PF-024
   - `pnpm eval` runs discovery on all fixtures; reports schema validity, question count, expected-requirement recall.

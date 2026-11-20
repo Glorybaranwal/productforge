@@ -134,7 +134,8 @@ Errors: `{ error: { code, message, details? } }`.
 | POST | /api/projects/:id/changes | Propose a change (`kind`, …, `reason`) and run the impact analysis (Idempotency-Key) |
 | POST | /api/changes/:id/analyze · /approve · /discard | Re-run the analysis · put in force (next requirement version) · drop |
 | POST | /api/changes/:id/reviews | Mark a flagged item (`PRD` or a story code) reviewed, with an optional note |
-| GET | /api/agent-runs/:id · /stream | Run status / SSE |
+| GET | /api/agent-runs/:id | Run status |
+| GET | /api/projects/:id/runs/live?stages=… | Live run steps (SSE, ADR-034) |
 
 ## Security
 
