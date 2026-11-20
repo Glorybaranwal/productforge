@@ -339,11 +339,13 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
     stay code arrays instead of join tables. Checked on Mumbai in Chrome: generate (9 stories, 25 criteria,
     35 tasks) → approve 9 (Gate 3 passed) → editing an approved story refused (409) → v2 copies its criteria and
     tasks → traceability 98. First page after a restart hit CONNECT_TIMEOUT again: the connection now retries once.
-- [~] **PF-074 — Sprints, exports and change requests in Postgres** · Depends on: PF-073
+- [x] **PF-074 — Sprints, exports and change requests in Postgres** · Depends on: PF-073
   - **Done when:** sprint planning, Jira export and requirement changes work with `DATA_DRIVER=postgres`.
   - *2026-11-20:* code and tests done (ADR-030; PGlite `planning-data.test.ts` 9/9). Exports were already audit
     entries in Postgres. Fixed: approving a change wrote the approver's name into `requirements.approved_by` (uuid).
-    Left: CI, `db:migrate` on Mumbai, a click-through.
+    Checked on Mumbai in Chrome: settings + plan + move out/in (stories depending on a draft held back, as
+    designed); CR-01 proposed → approved (FR-08 v2, approver stored as user id) → second approve 409 → review
+    mark saved; Changes page renders from Postgres.
 - [ ] **PF-075 — Postgres-only mode** · Depends on: PF-074
   - With `DATA_DRIVER=postgres` nothing touches the file store; demo mode keeps it.
   - Validate the `agent_run_id` foreign keys added `NOT VALID` in PF-071 (clear pre-PF-071 test data first).
