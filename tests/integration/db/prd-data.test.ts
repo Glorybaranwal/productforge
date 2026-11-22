@@ -31,7 +31,15 @@ import type { WorkspaceContext } from "@/src/modules/workspaces/schema";
 import { ensureWorkspace } from "@/src/modules/workspaces/service";
 import { BRIEF } from "@/tests/helpers/discovery";
 
-import { createRlsDb, PROJECT, type RlsHarness, USERS, WS } from "./rls-harness";
+import {
+  createRlsDb,
+  expectPgCode,
+  expectRlsRefusal,
+  PROJECT,
+  type RlsHarness,
+  USERS,
+  WS,
+} from "./rls-harness";
 
 let h: RlsHarness;
 let ana: WorkspaceContext;
@@ -115,7 +123,7 @@ describe("PRDs in Postgres (PF-072)", () => {
     ).rejects.toMatchObject({ code: "CONFLICT" });
     expect((await rowOf(v1!.id)).content.summary).toBe(v1!.content.summary);
     const deleting = h.as(USERS.ana, (tx) => tx.delete(prds).where(eq(prds.id, v1!.id)));
-    await expect(deleting).rejects.toThrow();
+    await expectRlsRefusal(deleting);
   });
 
   it("starts version 2 from the approved one, and allows only one open draft", async () => {
@@ -141,9 +149,9 @@ describe("PRDs in Postgres (PF-072)", () => {
     expect(await prdRepository.listByProject(ben, alpha)).toEqual([]);
     const forged = { ...ben, workspace: { ...ben.workspace, id: WS.ana } };
     expect(await prdRepository.listByProject(forged, alpha)).toEqual([]);
-    await expect(
-      prdRepository.insertVersion(ben, { ...v1!, id: newId(), status: "DRAFT", projectId: alpha }),
-    ).rejects.toThrow();
+    const smuggled = { ...v1!, id: newId(), status: "DRAFT" as const, projectId: alpha };
+    await expectPgCode(prdRepository.insertVersion(ben, smuggled), "23505"); // same version number
+    await expectRlsRefusal(prdRepository.insertVersion(forged, smuggled)); // the policy
   });
 
   it("passes the data-isolation audit with PRDs in place", async () => {

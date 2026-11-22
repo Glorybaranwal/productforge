@@ -388,6 +388,19 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
 - [ ] **PF-079 — Split the PRD workspace component** · Depends on: —
   - `components/prd/prd-workspace.tsx` is 374 lines; move the toolbar and approve panel to their own files.
   - **Done when:** no `max-lines` warning.
+- [ ] **PF-080 — Minor findings from the UI and tests review (2026-11-22)** · Depends on: —
+  - `app/dashboard/layout.tsx` disables `no-restricted-imports` to read `dataBackend()` from `src/db/scope`:
+    expose it from `src/lib` (next to `authDriver`) and drop the suppression.
+  - Add `expect(arr.length).toBeGreaterThan(0)` before each `.every(...)` in discovery-data, planning-data and
+    backlog-data tests (an empty array passes vacuously).
+  - The `*-data.test.ts` files depend on earlier `it`s (`changeId`, approvals): move shared setup to `beforeAll`
+    or make each `it` build its own prerequisites, so `-t` and `.only` work.
+  - `tests/unit/ai/budget.test.ts` and `route-matrix.test.ts` delete `AI_RUNS_PER_USER_PER_MINUTE` in `afterEach`:
+    use `vi.stubEnv` and `vi.unstubAllEnvs()` so a value set by CI or `.env` is restored.
+  - Tests still missing from the review: an inflating-entry zip test (header lies low, data is huge) and a
+    prompt-injection test that source text stays inside the untrusted-data block; the `onFile` upload path in
+    `sources-panel.tsx` (sends `FormData`).
+  - **Done when:** each item above is done or has a reason noted here.
 
 ## Later (not scheduled)
 

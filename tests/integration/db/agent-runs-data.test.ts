@@ -21,7 +21,15 @@ import type { WorkspaceContext } from "@/src/modules/workspaces/schema";
 import { ensureWorkspace } from "@/src/modules/workspaces/service";
 import { BRIEF } from "@/tests/helpers/discovery";
 
-import { createRlsDb, PROJECT, type RlsHarness, USERS, WS } from "./rls-harness";
+import {
+  createRlsDb,
+  expectPgCode,
+  expectRlsRefusal,
+  PROJECT,
+  type RlsHarness,
+  USERS,
+  WS,
+} from "./rls-harness";
 
 let h: RlsHarness;
 let ana: WorkspaceContext;
@@ -173,7 +181,7 @@ describe("AI run log in Postgres (PF-071)", () => {
     const deleting = h.as(USERS.ana, (tx) =>
       tx.delete(agentRuns).where(eq(agentRuns.id, latest!.id)),
     );
-    await expect(deleting).rejects.toThrow();
+    await expectRlsRefusal(deleting);
     const [row] = await h.db.select().from(agentRuns).where(eq(agentRuns.id, latest!.id));
     expect(row!.error).toBe(latest!.error);
   });
@@ -188,14 +196,15 @@ describe("AI run log in Postgres (PF-071)", () => {
       await agentRunRepository.findIdempotent(ben, `discovery:${alpha}`, "click-1"),
     ).toBeNull();
     // Ben can't log a run against Ana's project, nor point his rows at Ana's runs.
-    await expect(agentRunRepository.insert(ben, runningRun(ben))).rejects.toThrow();
+    await expectPgCode(agentRunRepository.insert(ben, runningRun(ben)), "23503"); // foreign key
+    await expectRlsRefusal(agentRunRepository.insert(forged, runningRun(forged))); // the policy
     const smuggle = h.as(USERS.ben, (tx) =>
       tx.execute(sql`insert into requirements (workspace_id, project_id, code, version, text, type,
         evidence, status, origin, agent_run_id)
         values (${WS.ben}, ${PROJECT.bravo}, 'FR-01', 1, 'Smuggled', 'functional', 'EXPLICIT',
         'DRAFT', 'human', ${latest!.id})`),
     );
-    await expect(smuggle).rejects.toThrow();
+    await expectPgCode(smuggle, "23503");
   });
 
   it("passes the data-isolation audit with the run log in place", async () => {
