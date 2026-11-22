@@ -401,6 +401,18 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
     `sources-panel.tsx` (sends `FormData`).
   - **Done when:** each item above is done or has a reason noted here.
 
+- [ ] **PF-081 — Deferred minors from the final review (2026-11-22)** · Depends on: —
+  - `run-progress.test.ts:74`: `slice(lastIndexOf + 2)` misbehaves when there is no frame boundary (latent, can only cause a false failure).
+  - `run-progress.test.ts:59`: the `started` promise is not awaited.
+  - The `empty:hidden` wrapper never hides now (cosmetic, a few px).
+  - `word-diff`: add tests for repeated words and punctuation.
+  - History panel refetches on every reopen (acceptable; cache if it shows up in traces).
+  - Judge: keep the "judge output invalid" reason for non-matches instead of reporting "missed".
+  - Extract `tier2Status()` from `discovery.eval.ts` (QUICK/demo gating) and test it.
+  - Add tests for the judge's phrase/index fallback paths.
+  - ADR-010 token cap: add `EVAL_TOKEN_CAP` or correct the ADR, once the user decides.
+  - **Done when:** each item above is done or has a reason noted here.
+
 ## Later (not scheduled)
 
 - Jira API sync · team collaboration / comments · duplicate-story detection (embeddings) · release notes ·

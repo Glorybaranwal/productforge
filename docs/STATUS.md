@@ -7,9 +7,10 @@
 - **Phase:** Data into Postgres (Week 7) — each module moves from the demo store to Postgres behind its repository
 - **In progress:** PF-010 (local Supabase via the CLI), PF-050 (Jira test import)
 - **In progress:** PF-075 (Postgres-only mode; code done on `m0-platform`, waiting on CI + `db:migrate`)
-- **Next up:** production deploy (PF-064)
+- **Next up:** run `pnpm lint && pnpm typecheck && pnpm test` on the Mac (jsdom component tests have never run); install Playwright (`corepack pnpm add -D -E @playwright/test`) and run `pnpm test:e2e`; PF-075 Mumbai check; PF-078 secret rotation; then production deploy (PF-064)
 - **Live preview:** https://claude.ai/artifact/UAKA9Kf7A8vRiXNyGbhkWo
 - **Blockers:** tests can't run inside Claude's link to the Mac, so `pnpm test` runs on the developer's machine and in CI (GitHub Actions); PF-050's done-when needs a Jira admin to import the CSV into a company-managed Jira test project
+- **Open question:** ADR-010 says the eval has a token cap; the code has none. Which is right?
 - **Open decisions:** none
 - **Working agreement:** one git branch per module (the tracker's Module column, e.g. `m2-prd`), reused for every
   task in that module until merged; Claude commits, the user pushes and merges. Keep replies and tool output lean.
@@ -32,6 +33,7 @@ Newest first. One row per session.
 
 | Date | Tasks touched | Outcome | Notes for next session |
 | --- | --- | --- | --- |
+| 2026-11-22 | PF-061, PF-035, PF-056, PF-029 | PF-061 review fixes (route matrix with valid bodies, RLS refusals asserted, write-side RLS and upload route tests); PF-035 PRD page split into smaller components; PF-056 requirement history view (compare two versions, linked change request; final-review fixes: old-to-new order, valid `aria-controls`, "Edited without a change request"); PF-029 eval Tier 2 judge (verdicts matched by cleaned phrase). Shim-run suites, typecheck and lint pass; jsdom and Playwright tests not run | Run the three checks on the Mac; install Playwright and run `pnpm test:e2e`; answer the ADR-010 token-cap question; PF-081 holds the deferred minors |
 | 2026-11-20 | PF-061, PF-062, PF-076, PF-077, PF-060 | Fixed the test-plan gaps (ADR-035): AI run budget (12/min per user, 2M tokens/month per workspace, 429), log redaction, route matrix over every route (tenant + roles), architecture lint rules, Playwright config + J1/J2 specs (not run yet). Test plan doc published | Install `@playwright/test` and run `pnpm test:e2e`; rotate secrets (PF-078) before real data |
 | 2026-11-20 | PF-027 | Live run progress (ADR-034): runner saves steps as they happen; SSE `GET /api/projects/:id/runs/live?stages=…` polls the run log; discovery, PRD and backlog pages show the current step under the button. 8 new tests | Push `ai-core`; check a discovery run in Chrome |
 | 2026-11-20 | PF-023 | Document upload (ADR-033): PDF (`unpdf` 2.2.1), .docx (`mammoth` 1.13.0), text; checks before parsing (type sniffing, 10 MB, 50 pages, zip-bomb pre-check); only the text is stored. 9 tests with real files; Chrome on Mumbai: PDF uploaded and listed, fake PDF refused. Branch `m1-discovery` | Push order: `m3-stories` → `m5-sprint-export` → `ai-core` → `m0-platform` → `m1-discovery`; `db:migrate` (0009) |
