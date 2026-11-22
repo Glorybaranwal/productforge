@@ -15,6 +15,8 @@ import {
 } from "@/src/modules/requirements/schema";
 import type { SourceDocument } from "@/src/modules/sources/schema";
 
+import { AddRequirement } from "./add-requirement";
+import { RequirementHistoryPanel } from "./requirement-history";
 import { EvidenceBadge, StatusBadge, TypeBadge } from "./badges";
 import { useAction } from "./use-action";
 
@@ -50,6 +52,7 @@ export function RequirementsPanel({ projectId, requirements, sources, locked }: 
             requirement={r}
             sourceName={sourceName(r.sourceId)}
             locked={locked}
+            projectId={projectId}
           />
         ))}
       </ul>
@@ -65,6 +68,7 @@ export function RequirementsPanel({ projectId, requirements, sources, locked }: 
                 requirement={r}
                 sourceName={sourceName(r.sourceId)}
                 locked={locked}
+                projectId={projectId}
               />
             ))}
           </ul>
@@ -79,13 +83,16 @@ function RequirementItem({
   requirement: r,
   sourceName,
   locked,
+  projectId,
 }: {
   requirement: Requirement;
   sourceName: string;
   locked: boolean;
+  projectId: string;
 }) {
   const id = useId();
   const [editing, setEditing] = useState(false);
+  const [comparing, setComparing] = useState(false);
   const [text, setText] = useState(r.text);
   const [type, setType] = useState(r.type);
   const [evidence, setEvidence] = useState<Evidence>(r.evidence);
@@ -183,6 +190,22 @@ function RequirementItem({
           {action.error}
         </p>
       )}
+      {r.version > 1 && (
+        <div>
+          <Button
+            size="sm"
+            variant="outline"
+            aria-expanded={comparing}
+            aria-controls={`${id}-history`}
+            onClick={() => setComparing((open) => !open)}
+          >
+            {comparing ? "Hide comparison" : "Compare versions"}
+          </Button>
+        </div>
+      )}
+      {comparing && (
+        <RequirementHistoryPanel projectId={projectId} code={r.code} id={`${id}-history`} />
+      )}
       {!locked && !editing && (
         <div className="flex gap-1">
           {r.status === "REJECTED" ? (
@@ -218,64 +241,5 @@ function RequirementItem({
         </div>
       )}
     </li>
-  );
-}
-
-function AddRequirement({ projectId }: { projectId: string }) {
-  const id = useId();
-  const [text, setText] = useState("");
-  const [type, setType] = useState<Requirement["type"]>("functional");
-  const action = useAction();
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const ok = await action.run(() =>
-      apiRequest(`/api/projects/${projectId}/requirements`, {
-        method: "POST",
-        body: { text, type },
-      }),
-    );
-    if (ok) setText("");
-  }
-
-  return (
-    <form
-      onSubmit={onSubmit}
-      noValidate
-      aria-label="New requirement"
-      className="space-y-3 rounded-xl border border-dashed p-4"
-    >
-      <Label htmlFor={`${id}-text`}>Add a requirement</Label>
-      <Textarea
-        id={`${id}-text`}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={2}
-        placeholder="e.g. Admins can export an audit log"
-      />
-      <div className="flex flex-wrap items-center gap-2">
-        <NativeSelect
-          aria-label="Requirement type"
-          className="w-auto"
-          value={type}
-          onChange={(e) => setType(e.target.value as Requirement["type"])}
-        >
-          <option value="functional">Functional</option>
-          <option value="non_functional">Non-functional</option>
-        </NativeSelect>
-        <Button
-          type="submit"
-          variant="secondary"
-          disabled={action.busy || text.trim().length === 0}
-        >
-          {action.busy ? "Adding…" : "Add requirement"}
-        </Button>
-      </div>
-      {(action.fieldErrors.text || action.error) && (
-        <p role="alert" className="text-sm text-destructive">
-          {action.fieldErrors.text ?? action.error}
-        </p>
-      )}
-    </form>
   );
 }

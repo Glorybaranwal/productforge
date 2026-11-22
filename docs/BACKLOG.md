@@ -274,10 +274,11 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - Some Jira Cloud sites (2026 reports) don't link stories to epics created in the same CSV. Offer an "epics
     first" file, then a children file whose Parent column holds the epic keys the PM pastes back in.
   - **Done when:** both files import into a Jira test project and every story shows its epic.
-- [ ] **PF-056 — Requirement history view** · Depends on: PF-053
+- [x] **PF-056 — Requirement history view** · Depends on: PF-053
   - On the discovery page, show each requirement's versions side by side (v1 → v2 wording, evidence, the change
     request and reason), like the PRD's version compare.
   - **Done when:** every requirement with more than one version can be compared, and each version links its CR.
+  - 2026-11-22: done — `GET /api/projects/:id/requirements/history`, word diff, "Compare versions" on the discovery page.
 - [ ] **PF-055 — Sprint close-out and measured velocity** (stretch) · Depends on: PF-052
   - Close a sprint (done / carried over), move unfinished stories to the next sprint, and suggest velocity from the
     average of the last three closed sprints instead of the 5-points-per-person starting rule (ADR-017).
