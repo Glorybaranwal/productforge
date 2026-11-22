@@ -34,13 +34,17 @@ These variables are optional:
 - `OPENAI_MODEL`: the model name. Leave it empty to use the default.
 - `AI_RUNS_PER_USER_PER_MINUTE`: how many AI runs one user may start in a minute.
 - `AI_MONTHLY_TOKEN_BUDGET_PER_WORKSPACE`: how many tokens one workspace may use in a calendar month (UTC).
+- `AUTH_OAUTH_PROVIDERS`: leave it unset unless you have turned on GitHub sign-in in Supabase.
+
+The two `NEXT_PUBLIC_` values are built into the site. If you change either one, deploy again so the change takes
+effect.
 
 Do not set these variables in Vercel:
 
 - `AUTH_DRIVER` must be unset in Production. If it is set to `demo`, production runs without sign-in. If you see it
   under Production, delete it.
 - `SUPABASE_SECRET_KEY` and `DATABASE_DIRECT_URL` stay on your own computer. The app does not read them. Only the
-  database scripts use them.
+  migration and check scripts use `DATABASE_DIRECT_URL`.
 
 ## Supabase redirect URL
 
@@ -64,8 +68,11 @@ Do these steps in this order.
 4. Set the Supabase redirect URL, as described above.
 5. Merge the `launch` pull request. Production deploys start from `main`, so this is the first production deploy.
 6. Open the production site and sign in once with an email link.
-7. On your computer, run `corepack pnpm db:seed -- --email <your email>`. This adds the demo project to your
-   account. The script reads `DATABASE_DIRECT_URL` from your local `.env.local` file.
+7. On your computer, run `corepack pnpm install` if you have not done so yet. Then run
+   `corepack pnpm db:seed -- --email <your email>`, using the email you signed in with at step 6. The seed adds
+   the demo project to that account. It runs on your computer and reads `DATABASE_URL` and `DATA_DRIVER` from your
+   local `.env.local` file. Set `DATA_DRIVER` to `postgres` there, and set `DATABASE_URL` to the same transaction
+   pooler string you used for Production.
 
 ## Smoke test
 
@@ -74,7 +81,7 @@ Check these items on the production site after the last step.
 1. Sign in with an email link. You should land on the dashboard.
 2. The dashboard lists the demo project.
 3. Open each project page. Each page should load without an error.
-4. Create a new project, add a source, and run discovery. The progress view should show all six steps.
+4. Create a new project, add a source, and run discovery. The progress view should finish without an error.
 5. Open Vercel → your project → Logs. The logs should show no errors.
 6. Open the browser's developer tools, go to the Network tab, and reload the page. The response should include a
    `Content-Security-Policy` header with a nonce.
