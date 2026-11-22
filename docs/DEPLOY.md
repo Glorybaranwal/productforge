@@ -12,6 +12,15 @@ You need access to the Vercel project `productforge-l5ep` and to the Supabase pr
 2. Vercel builds this repository and runs functions in the `bom1` region (Mumbai, next to the database).
 3. Preview deploys have no Supabase variables, so they run in demo mode. You do not need to change them.
 
+## Before you start: two checks on your own computer
+
+Both of these have never been run, and each one can block the pull request. Do them before you merge anything.
+
+1. `corepack pnpm install --frozen-lockfile`. The `tsx` entry in `pnpm-lock.yaml` was written by hand, and this is
+   the command CI runs. If it fails, run `corepack pnpm install`, commit the lockfile it writes, and push.
+2. `corepack pnpm db:seed` with no arguments. It should print the usage line and stop. The seed has never been run
+   by `tsx`, and this proves the script loads at all before you depend on it at step 7.
+
 ## Production variables
 
 Set these in Vercel → your project → Settings → Environment Variables. For each one, choose **Production** only.
@@ -63,22 +72,31 @@ Set these by hand. Do not use the Supabase–Vercel integration. It changed thes
 Do these steps in this order.
 
 1. Merge the open `m0-platform` pull request into `main`.
-2. On your computer, run `corepack pnpm db:migrate`, then `corepack pnpm db:check`. Both must succeed before you go on.
+2. On your computer, run `corepack pnpm db:migrate`, then `corepack pnpm db:check`, then `corepack pnpm db:audit`.
+   All three must succeed before you go on. `db:audit` is the one that proves no table can be read without a policy.
 3. Set the production variables in Vercel, as described above.
 4. Set the Supabase redirect URL, as described above.
 5. Merge the `launch` pull request. Production deploys start from `main`, so this is the first production deploy.
 6. Open the production site and sign in once with an email link.
-7. On your computer, run `corepack pnpm install` if you have not done so yet. Then run
-   `corepack pnpm db:seed -- --email <your email>`, using the email you signed in with at step 6. The seed adds
-   the demo project to that account. It runs on your computer and reads `DATABASE_URL` and `DATA_DRIVER` from your
-   local `.env.local` file. Set `DATA_DRIVER` to `postgres` there, and set `DATABASE_URL` to the same transaction
-   pooler string you used for Production.
+7. On your computer, run `corepack pnpm db:seed -- --email <your email>`, using the email you signed in with at
+   step 6. The seed adds the demo project to that account. It runs on your computer, against the production
+   database, and reads four values from your local `.env.local`:
+   - `DATA_DRIVER=postgres` — without it the seed refuses to run.
+   - `DATABASE_URL` — the same transaction pooler string you used for Production.
+   - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — the same values as Production. The
+     seed does not sign anyone in, but the data layer reads them on the way up and throws if either is missing.
 
 ## Smoke test
 
 Check these items on the production site after the last step.
 
 1. Sign in with an email link. You should land on the dashboard.
+
+   **Expect trouble here until PF-017 is done, and do not treat it as a failed deploy.** Supabase's built-in email
+   only reaches the Supabase project's own team, a few messages an hour, so no other address will receive
+   anything. The link also carries a `code` that only works in the browser that asked for it, so opening the mail
+   on your phone fails. Both are fixed by PF-017 (custom SMTP and a `token_hash` template); the callback already
+   accepts `token_hash`. If sign-in is the only check that fails, go on to PF-017 rather than rolling back.
 2. The dashboard lists the demo project.
 3. Open each project page. Each page should load without an error.
 4. Create a new project, add a source, and run discovery. The progress view should finish without an error.
@@ -86,13 +104,26 @@ Check these items on the production site after the last step.
 6. Open the browser's developer tools, go to the Network tab, and reload the page. The response should include a
    `Content-Security-Policy` header with a nonce.
 
-If a check fails, do the rollback below and tell the developer which check failed.
+If a check other than sign-in fails, read the rollback section below before you touch anything — on this first
+deploy, rolling back is the wrong move. Tell the developer which check failed.
 
 ## Rollback
 
-1. Open Vercel → your project → Deployments.
-2. Find the last deployment that worked.
-3. Open its menu and choose the option to promote it to production.
+**On this first production deploy, fix forward instead of rolling back.** There is no good deployment to go back
+to: the only earlier production build is the one from before this work, and it answers 500 on `/dashboard`
+because it has no Supabase variables. Promoting it would replace one broken site with another.
+
+So if a check fails:
+
+1. Check the production variables against the list above — a missing or misspelled one is by far the likeliest
+   cause, and `DATA_DRIVER` or either `NEXT_PUBLIC_SUPABASE_*` being absent produces exactly this 500.
+2. Read Vercel → your project → Logs for the first error, and fix it on a branch.
+3. Redeploy from `main`.
+
+Once a deploy has succeeded, an earlier good deployment exists and the normal rollback applies: Vercel → your
+project → Deployments, find that deployment, open its menu and promote it to production. Know before you do that
+Vercel's Instant Rollback **stops production domains being assigned automatically**, so later pushes to `main`
+will build but will not go live until you turn it off again.
 
 ## Known limit
 

@@ -101,7 +101,7 @@ describe("seedDemoProject", () => {
     expect(await counts()).toEqual(before);
   });
 
-  it("resumes from Gate 1 when only discovery was done", async () => {
+  it("resumes after a discovery run: keeps that discovery and runs every later step", async () => {
     const ctx = await makeContext("owner");
     const { projectId } = await seedDemoProject(ctx);
     // A fresh workspace seeded fully is complete; a second one stopped after Gate 1 resumes after it.

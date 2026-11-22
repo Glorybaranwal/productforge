@@ -134,7 +134,7 @@ export async function seedDemoProject(
       "approve PRD (Gate 2)",
       async () => !(await prds()).versions.some((v) => v.status === "APPROVED"),
       async () => {
-        const latest = (await prds()).versions[0];
+        const latest = (await prds()).versions.at(-1);
         if (!latest) throw new Error("no PRD version was created");
         await approvePrd(ctx, latest.id);
       },
