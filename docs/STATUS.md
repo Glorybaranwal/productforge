@@ -4,10 +4,10 @@
 
 ## Current
 
-- **Phase:** Data into Postgres (Week 7) — each module moves from the demo store to Postgres behind its repository
+- **Phase:** Week 8 — hardening and launch prep; every module's data is in Postgres (Week 7 done)
 - **In progress:** PF-010 (local Supabase via the CLI), PF-050 (Jira test import)
-- **In progress:** PF-075 (Postgres-only mode; code done on `m0-platform`, waiting on CI + `db:migrate`)
-- **Next up:** run `pnpm lint && pnpm typecheck && pnpm test` on the Mac (jsdom component tests have never run); install Playwright (`corepack pnpm add -D -E @playwright/test`) and run `pnpm test:e2e`; PF-075 done; PF-078 secret rotation; then production deploy (PF-064)
+- **In progress:** PF-060 (browser journeys: J1, J2 pass; J3–J8 left); pull request `m0-platform` → `main`
+- **Next up:** merge the `m0-platform` pull request once CI is green (CI runs the jsdom component tests that never ran in Claude's VM); then PF-064 (production deploy, now unblocked by PF-075); PF-078 (rotate secrets) before real data
 - **Live preview:** https://claude.ai/artifact/UAKA9Kf7A8vRiXNyGbhkWo
 - **Blockers:** tests can't run inside Claude's link to the Mac, so `pnpm test` runs on the developer's machine and in CI (GitHub Actions); PF-050's done-when needs a Jira admin to import the CSV into a company-managed Jira test project
 - **Open decisions:** none
