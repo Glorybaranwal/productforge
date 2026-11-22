@@ -14,6 +14,8 @@ export type StructuredRequest<T extends z.ZodType> = {
   /** Validation errors from a previous attempt, so the model can fix them. */
   feedback?: string[];
   model?: string;
+  /** Sampling temperature. Omitted (provider default) unless set; some models reject it. */
+  temperature?: number;
 };
 
 export type StructuredResult = {

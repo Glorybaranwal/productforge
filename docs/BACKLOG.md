@@ -172,9 +172,10 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - **Done when:** report written to `tests/ai-evals/reports/<date>.md`.
   - _2026-11-19 (Module 2): `pnpm eval` / `pnpm eval:quick` (Vitest config `vitest.eval.config.mts`) write `tests/ai-evals/reports/<date>-discovery-<provider>.md` with ADR-010 Tier 1 scores. Tier 2 judge → PF-029._
 
-- [ ] **PF-029 — Eval Tier 2 judge** · Depends on: PF-028
+- [x] **PF-029 — Eval Tier 2 judge** · Depends on: PF-028
   - LLM judge for expected items Tier 1 missed (ADR-010): `tests/ai-evals/judge.v1.md`, temperature 0, JSON verdict.
   - **Done when:** full `pnpm eval` reports which tier matched each item.
+  - _2026-11-22: `tests/ai-evals/judge.ts` + `judge.v1.md`; full runs on a real provider judge the Tier 1 misses (one call per fixture and list) and the report lists the tier per expected item; quick and demo runs skip Tier 2._
 
 ## Week 3 — PRD and stories
 
