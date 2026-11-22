@@ -136,4 +136,26 @@ describe("judgeMisses", () => {
     expect(calls.length).toBe(0);
     expect(out[0]).toMatchObject({ match: false, outputItemId: null });
   });
+
+  it("matches a verdict to an oddly formatted phrase by its cleaned form", async () => {
+    const { client } = fakeClient({
+      verdicts: [
+        {
+          phrase: "alert  on <b>failed</b> payments",
+          match: true,
+          outputItemId: "R1",
+          reason: "same",
+        },
+      ],
+    });
+    // two misses, one verdict: the index fallback cannot apply, only the phrase lookup can
+    const out = await judgeMisses(
+      client,
+      "sys",
+      ["alert  on <b>failed</b>\npayments", "other"],
+      items,
+    );
+    expect(out[0]).toMatchObject({ match: true, outputItemId: "R1" });
+    expect(out[1]?.reason).toBe("judge output invalid");
+  });
 });

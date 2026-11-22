@@ -88,7 +88,7 @@ export async function judgeMisses(
   const ids = new Set(items.map((i) => i.id));
   return misses.map((phrase, index) => {
     const v =
-      verdicts.find((x) => x.phrase.trim() === phrase.trim()) ??
+      verdicts.find((x) => clean(x.phrase) === clean(phrase)) ??
       (verdicts.length === misses.length ? verdicts[index] : undefined);
     if (!v) return noMatch(phrase);
     if (!v.match) return { ...v, phrase, outputItemId: null };
