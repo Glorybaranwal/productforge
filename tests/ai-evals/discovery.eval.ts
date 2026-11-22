@@ -5,7 +5,7 @@
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, inject, it } from "vitest";
 
 import { getLLMClient } from "@/src/ai/llm-client";
 import type { LLMClient } from "@/src/ai/types";
@@ -17,7 +17,7 @@ import { DiscoveryOutput } from "@/src/modules/requirements/schema";
 
 import { EvalFixture } from "./fixture-schema";
 import { judgeMisses } from "./judge";
-import type { Tier2Status } from "./report";
+import type { StoppedAt, Tier2Status } from "./report";
 import {
   applyJudgeVerdicts,
   discoveryCandidates,
@@ -27,6 +27,7 @@ import {
   type FixtureScore,
   type ItemKind,
 } from "./score";
+import { cappedEvalClient, isTokenCapReached, type TokenCapReached } from "./token-cap";
 
 const QUICK = process.env.EVAL_QUICK === "1";
 const FIXTURES = fileURLToPath(new URL("./fixtures/", import.meta.url));
@@ -65,11 +66,11 @@ async function tier2(
 
 /** Same contract as the stage runner: schema + business rules, one retry with feedback. */
 async function evaluate(
+  llm: LLMClient,
   fixture: EvalFixture,
   system: string,
   judgeSystem: string | null,
 ): Promise<FixtureScore> {
-  const llm = getLLMClient();
   // Only project and input reach the model; notes and expected never do (fixtures README).
   const input: DiscoveryInput = {
     project: { name: `Fixture ${fixture.id}`, ...fixture.project },
@@ -98,6 +99,8 @@ async function evaluate(
       }
       feedback = problems;
     } catch (err) {
+      // The token cap stops the whole run; it isn't a failed attempt to retry.
+      if (isTokenCapReached(err)) throw err;
       feedback = [String((err as Error).message)];
     }
   }
@@ -106,13 +109,27 @@ async function evaluate(
 
 describe(`discovery eval${QUICK ? " (quick)" : ""}`, () => {
   it("meets the ADR-010 blocking gates and writes a report", async () => {
-    const llm = getLLMClient();
+    const capped = cappedEvalClient(getLLMClient(), inject("evalUsageFile"));
+    const { llm } = capped;
     const system = await loadPrompt(discoveryStage.promptFile);
     // ADR-010: Tier 2 never runs in quick runs, and the demo engine has no judge.
     const tier2Status: Tier2Status = QUICK ? "quick" : llm.provider === "demo" ? "demo" : "ran";
     const judgeSystem = tier2Status === "ran" ? readFileSync(JUDGE_PROMPT, "utf8") : null;
+    const fixtures = loadFixtures();
     const scores: FixtureScore[] = [];
-    for (const fixture of loadFixtures()) scores.push(await evaluate(fixture, system, judgeSystem));
+    let capReached: TokenCapReached | null = null;
+    for (const fixture of fixtures) {
+      try {
+        scores.push(await evaluate(llm, fixture, system, judgeSystem));
+      } catch (err) {
+        if (!isTokenCapReached(err)) throw err;
+        capReached = err; // ADR-010 cost guard: stop, report what ran, then fail
+        break;
+      }
+    }
+    const stopped: StoppedAt | null = capReached
+      ? { done: scores.length, total: fixtures.length }
+      : null;
 
     const summary = summarize(scores);
     const date = new Date().toISOString().slice(0, 10);
@@ -126,9 +143,12 @@ describe(`discovery eval${QUICK ? " (quick)" : ""}`, () => {
         date,
         quick: QUICK,
         tier2: tier2Status,
+        tokens: capped.tokens(),
+        stopped,
       }),
     );
     console.log(`Eval report: ${file}`);
+    if (capReached) throw capReached;
 
     expect(summary.schemaValidRate >= 0.95).toBe(true);
     expect(summary.allHaveQuestions).toBe(true);

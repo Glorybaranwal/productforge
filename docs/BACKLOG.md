@@ -413,6 +413,13 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - ADR-010 token cap: add `EVAL_TOKEN_CAP` or correct the ADR, once the user decides.
   - **Done when:** each item above is done or has a reason noted here.
 
+- [x] **PF-082 — Eval token cap** · Depends on: PF-029
+  - ADR-010's cost guard: one `EVAL_TOKEN_CAP` for a whole `pnpm eval` run, shared by every eval file; stops before
+    the next model call once reached, reports what ran, then fails with how to raise it. Demo engine uncapped.
+  - **Done when:** unit tests show the cap refuses the next call, holds across two eval files, and the report states
+    usage and an early stop.
+  - *2026-11-22:* built (`tests/ai-evals/token-cap.ts`, `global-setup.ts`); 11 unit tests, red-green checked.
+
 ## Later (not scheduled)
 
 - Jira API sync · team collaboration / comments · duplicate-story detection (embeddings) · release notes ·

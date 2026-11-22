@@ -1,5 +1,6 @@
 /** ADR-010 Tier 2: an LLM judge for expected phrases Tier 1 (content-word match) missed. */
 import { z } from "zod";
+import { isTokenCapReached } from "./token-cap";
 
 import type { LLMClient } from "@/src/ai/types";
 
@@ -58,8 +59,9 @@ export function renderJudgePrompt(misses: string[], items: JudgeItem[]): string 
 }
 
 /**
- * One model call for all `misses` of one list in one fixture. Never throws: an unusable answer is
- * "no match, judge output invalid", so a flaky judge can only lower recall, never crash the eval.
+ * One model call for all `misses` of one list in one fixture. An unusable answer is "no match, judge
+ * output invalid", so a flaky judge can only lower recall, never crash the eval. The one error it
+ * passes on is the run's token cap (token-cap.ts).
  */
 export async function judgeMisses(
   llm: LLMClient,
@@ -80,7 +82,9 @@ export async function judgeMisses(
       temperature: 0,
     });
     verdicts = parseVerdicts(result.data);
-  } catch {
+  } catch (err) {
+    // The token cap stops the run; it isn't a bad answer from the judge.
+    if (isTokenCapReached(err)) throw err;
     verdicts = null;
   }
   if (!verdicts) return misses.map((m) => noMatch(m));

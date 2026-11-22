@@ -4,7 +4,7 @@
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, inject, it } from "vitest";
 
 import { getLLMClient } from "@/src/ai/llm-client";
 import { loadPrompt } from "@/src/ai/prompts/load";
@@ -14,6 +14,7 @@ import { linkedCodes, PrdContent } from "@/src/modules/prd/schema";
 import { prdInputFor } from "@/tests/helpers/prd-input";
 
 import { EvalFixture } from "./fixture-schema";
+import { cappedEvalClient } from "./token-cap";
 
 const FIXTURES = fileURLToPath(new URL("./fixtures/", import.meta.url));
 const REPORTS = fileURLToPath(new URL("./reports/", import.meta.url));
@@ -30,7 +31,7 @@ type Row = {
 
 describe("PRD eval (quick set)", () => {
   it("produces a schema-valid, fully traced PRD for every quick fixture", async () => {
-    const llm = getLLMClient();
+    const { llm } = cappedEvalClient(getLLMClient(), inject("evalUsageFile"));
     const system = await loadPrompt(prdStage.promptFile);
     const fixtures = readdirSync(FIXTURES)
       .filter((f) => f.endsWith(".json"))

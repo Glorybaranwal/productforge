@@ -10,7 +10,6 @@
 - **Next up:** run `pnpm lint && pnpm typecheck && pnpm test` on the Mac (jsdom component tests have never run); install Playwright (`corepack pnpm add -D -E @playwright/test`) and run `pnpm test:e2e`; PF-075 Mumbai check; PF-078 secret rotation; then production deploy (PF-064)
 - **Live preview:** https://claude.ai/artifact/UAKA9Kf7A8vRiXNyGbhkWo
 - **Blockers:** tests can't run inside Claude's link to the Mac, so `pnpm test` runs on the developer's machine and in CI (GitHub Actions); PF-050's done-when needs a Jira admin to import the CSV into a company-managed Jira test project
-- **Open question:** ADR-010 says the eval has a token cap; the code has none. Which is right?
 - **Open decisions:** none
 - **Working agreement:** one git branch per module (the tracker's Module column, e.g. `m2-prd`), reused for every
   task in that module until merged; Claude commits, the user pushes and merges. Keep replies and tool output lean.
@@ -33,6 +32,7 @@ Newest first. One row per session.
 
 | Date | Tasks touched | Outcome | Notes for next session |
 | --- | --- | --- | --- |
+| 2026-11-22 | PF-082 | Eval token cap (ADR-010 follow-up, user's call): `EVAL_TOKEN_CAP` (default 1M tokens) shared across all eval files via a global setup; early stop writes a partial report and fails; demo engine uncapped. 11 unit tests | Run a real `pnpm eval` once and tune the cap from the report's token line |
 | 2026-11-22 | PF-061, PF-035, PF-056, PF-029 | PF-061 review fixes (route matrix with valid bodies, RLS refusals asserted, write-side RLS and upload route tests); PF-035 PRD page split into smaller components; PF-056 requirement history view (compare two versions, linked change request; final-review fixes: old-to-new order, valid `aria-controls`, "Edited without a change request"); PF-029 eval Tier 2 judge (verdicts matched by cleaned phrase). Shim-run suites, typecheck and lint pass; jsdom and Playwright tests not run | Run the three checks on the Mac; install Playwright and run `pnpm test:e2e`; answer the ADR-010 token-cap question; PF-081 holds the deferred minors |
 | 2026-11-20 | PF-061, PF-062, PF-076, PF-077, PF-060 | Fixed the test-plan gaps (ADR-035): AI run budget (12/min per user, 2M tokens/month per workspace, 429), log redaction, route matrix over every route (tenant + roles), architecture lint rules, Playwright config + J1/J2 specs (not run yet). Test plan doc published | Install `@playwright/test` and run `pnpm test:e2e`; rotate secrets (PF-078) before real data |
 | 2026-11-20 | PF-027 | Live run progress (ADR-034): runner saves steps as they happen; SSE `GET /api/projects/:id/runs/live?stages=…` polls the run log; discovery, PRD and backlog pages show the current step under the button. 8 new tests | Push `ai-core`; check a discovery run in Chrome |

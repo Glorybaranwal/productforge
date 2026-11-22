@@ -2,6 +2,7 @@
 import { supportsTemperature } from "@/src/ai/openai-client";
 
 import { JUDGE_PROMPT_VERSION } from "./judge";
+import type { TokenUse } from "./token-cap";
 import type { FixtureScore, ItemKind } from "./score";
 
 const ratio = (m: number, t: number) => (t === 0 ? 1 : m / t);
@@ -81,11 +82,43 @@ function itemRows(s: FixtureScore): string[] {
 }
 
 const pct = (n: number) => `${Math.round(n * 100)} %`;
+const num = (n: number) => n.toLocaleString("en");
+
+/** How many fixtures ran before the token cap stopped the run (ADR-010 cost guard). */
+export type StoppedAt = { done: number; total: number };
+
+/** The token lines of a report: usage against the cap, and a notice when the cap stopped the run. */
+export function tokenLines(
+  tokens: TokenUse | undefined,
+  stopped: StoppedAt | null | undefined,
+): string[] {
+  if (!tokens) return [];
+  const usage =
+    tokens.cap === null
+      ? `Tokens used by this eval run: ${num(tokens.used)} (demo engine, no cap).`
+      : `Tokens used by this eval run: ${num(tokens.used)} of the ${num(tokens.cap)} cap (\`EVAL_TOKEN_CAP\`).`;
+  if (!stopped) return [usage, ""];
+  return [
+    usage,
+    "",
+    `**Stopped early: the token cap was reached after ${stopped.done} of ${stopped.total} fixtures.** ` +
+      `The results below cover those ${stopped.done}. Raise \`EVAL_TOKEN_CAP\` to run the rest.`,
+    "",
+  ];
+}
 
 export function renderReport(
   summary: EvalSummary,
   scores: FixtureScore[],
-  meta: { provider: string; model: string; date: string; quick: boolean; tier2: Tier2Status },
+  meta: {
+    provider: string;
+    model: string;
+    date: string;
+    quick: boolean;
+    tier2: Tier2Status;
+    tokens?: TokenUse;
+    stopped?: StoppedAt | null;
+  },
 ): string {
   const rows = scores.map(
     (s) =>
@@ -101,6 +134,7 @@ export function renderReport(
     "",
     `Provider: **${meta.provider}** · model: \`${meta.model}\` · scoring: ADR-010 Tier 1 (content-word match) + Tier 2 judge prompt \`${JUDGE_PROMPT_VERSION}\`. ${TIER2_TEXT(meta.tier2, meta.model)}.`,
     "",
+    ...tokenLines(meta.tokens, meta.stopped),
     "## Summary",
     "",
     "| Metric | Result | Gate |",

@@ -6,7 +6,7 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { z } from "zod";
-import { describe, expect, it } from "vitest";
+import { describe, expect, inject, it } from "vitest";
 
 import { getLLMClient, type LLMClient } from "@/src/ai/llm-client";
 import { criterionFlags, dependencyCycles } from "@/src/ai/orchestrator/rules";
@@ -25,6 +25,7 @@ import { zodFieldErrors } from "@/src/lib/errors";
 import { storyInputFor } from "@/tests/helpers/backlog-input";
 
 import { EvalFixture } from "./fixture-schema";
+import { cappedEvalClient } from "./token-cap";
 
 const FIXTURES = fileURLToPath(new URL("./fixtures/", import.meta.url));
 const REPORTS = fileURLToPath(new URL("./reports/", import.meta.url));
@@ -75,7 +76,7 @@ type Row = {
 
 describe("Backlog eval (quick set)", () => {
   it("writes traced stories with testable criteria and estimated tasks", async () => {
-    const llm = getLLMClient();
+    const { llm } = cappedEvalClient(getLLMClient(), inject("evalUsageFile"));
     const prompts = {
       story: await loadPrompt("story.v1.md"),
       qa: await loadPrompt("qa.v1.md"),

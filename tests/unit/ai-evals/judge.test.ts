@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { judgeMisses, renderJudgePrompt } from "@/tests/ai-evals/judge";
+import { TokenCapReached, isTokenCapReached } from "@/tests/ai-evals/token-cap";
 import type { LLMClient, StructuredRequest } from "@/src/ai/types";
 
 function fakeClient(reply: unknown, opts: { throws?: boolean } = {}) {
@@ -157,5 +158,22 @@ describe("judgeMisses", () => {
     );
     expect(out[0]).toMatchObject({ match: true, outputItemId: "R1" });
     expect(out[1]?.reason).toBe("judge output invalid");
+  });
+
+  it("passes the run's token cap on instead of scoring it as a bad answer", async () => {
+    const client: LLMClient = {
+      provider: "openai",
+      model: "test-model",
+      async generateStructured() {
+        throw new TokenCapReached(1_000, 1_000);
+      },
+    };
+    let error: unknown = null;
+    try {
+      await judgeMisses(client, "sys", ["alert on failed payments"], items);
+    } catch (err) {
+      error = err;
+    }
+    expect(isTokenCapReached(error)).toBe(true);
   });
 });

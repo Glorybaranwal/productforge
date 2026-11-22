@@ -115,6 +115,13 @@ misses; an invalid verdict counts as no match (an over-long reason is cut to 200
 validated alone), so the judge can only lower recall, never crash a run. On gpt-5 and o-series models (the default
 model gpt-5-mini included) the judge therefore runs at the model's default temperature, so verdicts may vary between
 runs; the report states the temperature actually used.
+**Follow-up (2026-11-22, PF-082 — the cost guard above, decided by the user: "build the cap"):** `EVAL_TOKEN_CAP`
+(default 1,000,000 tokens in + out) covers a whole `pnpm eval` run: a global setup creates one usage log that every
+eval file appends to, so the cap holds across Vitest's parallel workers. A call is refused once the run has reached the
+cap; calls already in flight finish, so a run can pass it by at most one call per worker. The discovery eval then
+writes a report of the fixtures that ran, marked "Stopped early", and fails with how to raise the cap. Every report
+states the tokens used against the cap. The demo engine is never capped (it costs nothing), so `eval:quick` in CI is
+unaffected. The default is an estimate; tune it from the token line of the first real reports.
 
 ### ADR-011 — Demo mode first, real services behind the same interfaces
 **Status:** ACCEPTED · 2026-11-18 · decided by Claude acting as PM, at the user's request
