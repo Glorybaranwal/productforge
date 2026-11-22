@@ -315,8 +315,12 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
     `main()` and `getSession` is imported lazily, which takes `next/headers` out of the script's module graph
     altogether. Also fixed: the rollback step pointed at a deployment that 500s, the smoke test was silent about
     PF-017, step 7 under-stated `.env.local`, step 2 omitted `db:audit`, and the PRD approval on resume picked
-    the oldest version. **Still owed by the developer:** `pnpm install --frozen-lockfile` (hand-edited lockfile)
-    and one `pnpm db:seed` run — neither can run in Claude's VM (its `node_modules` holds macOS binaries).
+    the oldest version.
+  - *2026-11-22 (both open findings closed on the developer's Mac):* `corepack pnpm install --frozen-lockfile`
+    succeeded, so the hand-edited `tsx` lockfile entry is valid and CI will not block the pull request.
+    `corepack pnpm db:seed` with no arguments printed its usage line and stopped — static imports resolve
+    before `main()` runs, so that message proves the whole 115-file module graph loads under `tsx`, which is
+    the thing that could not be checked in Claude's VM (Linux arm64 against darwin-arm64 esbuild binaries).
   - Needs every module's data in Postgres first (the file store needs a writable disk). Then: Supabase variables in
     Vercel's Production environment, production callback in Supabase redirect URLs as `https://<host>/auth/callback?**` (set by hand, not the
     Vercel integration), remove

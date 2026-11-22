@@ -14,7 +14,8 @@ You need access to the Vercel project `productforge-l5ep` and to the Supabase pr
 
 ## Before you start: two checks on your own computer
 
-Both of these have never been run, and each one can block the pull request. Do them before you merge anything.
+Run both before you merge anything. Each one can block the pull request, and both passed on 2026-11-22 — so
+if either fails now, something changed after that.
 
 1. `corepack pnpm install --frozen-lockfile`. The `tsx` entry in `pnpm-lock.yaml` was written by hand, and this is
    the command CI runs. If it fails, run `corepack pnpm install`, commit the lockfile it writes, and push.
