@@ -307,7 +307,8 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - Run all fixtures; save `docs/EVAL_REPORT.md` with results against targets.
 - [ ] **PF-064 — Production deploy + demo seed** · Depends on: PF-016, PF-060
   - Seeded demo project (transaction monitoring dashboard).
-  - *2026-11-22:* seed done: `pnpm db:seed -- --email <user>` (needs `DATA_DRIVER=postgres`; `src/modules/projects/demo-seed.ts`, idempotent, demo engine). Production config next.
+  - *2026-11-22:* seed done: `pnpm db:seed -- --email <user>` (needs `DATA_DRIVER=postgres`; `src/modules/projects/demo-seed.ts`, idempotent, demo engine).
+  - *2026-11-22:* config and runbook done (`docs/DEPLOY.md`; `vercel.json` no longer blocks `main` deploys). Left: the owner's steps in that guide, then the smoke test. The task stays open until then.
   - Needs every module's data in Postgres first (the file store needs a writable disk). Then: Supabase variables in
     Vercel's Production environment, production callback in Supabase redirect URLs as `https://<host>/auth/callback?**` (set by hand, not the
     Vercel integration), remove
