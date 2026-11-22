@@ -24,11 +24,14 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - Ask the user Drizzle vs Prisma; record in ADR-005.
   - **Done when:** ADR-005 is ACCEPTED.
   - _2026-11-18: user delegated the call; Drizzle chosen (ADR-005)._
-- [ ] **PF-003 — Domain Zod schemas** · Depends on: PF-001
+- [x] **PF-003 — Domain Zod schemas** · Depends on: PF-001
   - `Evidence`, `ArtifactStatus`, `Requirement`, `ClarifyingQuestion`, `Prd` (+ sections), `Epic`, `UserStory`,
     `AcceptanceCriterion`, `TechnicalTask`, `Sprint` in `src/modules/*/schema.ts`.
   - Story requires `requirementIds.min(1)` and `acceptanceCriteria.min(2)`.
   - **Done when:** unit tests pass for one valid and two invalid samples per schema.
+  - *2026-11-20:* `tests/unit/schemas/domain.test.ts` (24 cases: Requirement, ClarifyingQuestion, Prd, Epic, Story,
+    AcceptanceCriterion, TechnicalTask, Sprint). Stories link ≥ 1 requirement in the schema; "≥ 2 criteria" is a
+    backlog rule (PF-044), since criteria are their own rows.
 - [x] **PF-004 — AI eval fixtures** · Depends on: —
   - 20 fixtures in `tests/ai-evals/fixtures/` using the format in its README:
     5 normal, 4 vague, 4 contradictory, 4 missing-info, 3 complex.
@@ -117,9 +120,11 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - _2026-11-20: done. `productforge-mumbai` (`wvbfqdgpvsihimfnfdei`) migrated (0000–0003), `db:audit` clean; measured in
     dev from India: project page 86–226 ms, dashboard 86 ms (were 2–7 s). `adminDb()` now reopens its pool when
     `DATABASE_URL` changes (a stale pool kept the old password after the switch)._
-- [ ] **PF-019 — Nonce-based CSP** · Depends on: PF-013
+- [x] **PF-019 — Nonce-based CSP** · Depends on: PF-013
   - Replace `'unsafe-inline'` scripts with per-request nonces set in `proxy.ts` (ADR-023).
   - **Done when:** the CSP has no `'unsafe-inline'` for scripts and every page still works.
+  - *2026-11-20:* per-request nonce from `proxy.ts`, `'strict-dynamic'`, no `'unsafe-inline'` for scripts (ADR-032).
+    Checked in Chrome on every project page: no CSP violations, client code works.
 
 ## Week 2 — AI discovery
 
@@ -137,9 +142,13 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
     save drafts in one transaction → update run.
   - **Done when:** unit tests cover success, invalid-then-valid, invalid-twice.
   - _2026-11-19 (Module 2): `runStage` with Zod + business rules, one retry with the errors, persist, run log; tests cover success, invalid-then-valid, invalid-twice and provider errors._
-- [ ] **PF-023 — Document upload + extraction** · Depends on: PF-015
+- [x] **PF-023 — Document upload + extraction** · Depends on: PF-015
   - PDF/DOCX/TXT ≤ 10 MB, MIME check, Supabase Storage, text extraction server-side, `source_documents` table.
   - **Done when:** an uploaded PDF's text is stored and visible in the project.
+  - *2026-11-20:* server-side extraction (ADR-033): PDF (`unpdf`), .docx (`mammoth`), text; checks before parsing
+    (type sniffing, 10 MB, 50 pages, zip-bomb pre-check); only text stored. 9 extraction tests with real files.
+    Checked on Mumbai in Chrome: a 2-page PDF uploaded (201, text stored as a source, listed on the page); a fake
+    PDF refused (400 "This file isn't a PDF").
 - [x] **PF-024 — Discovery stage** · Depends on: PF-022
   - Prompt `src/ai/prompts/discovery.v1.md`; output: requirements (with evidence + type), actors, goals, constraints,
     clarifying questions, conflicts, ambiguity flags with a suggested measurable question.
@@ -154,8 +163,8 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - Answer / skip / mark-as-assumption each question → re-run discovery with answers → "Confirm requirements".
   - **Done when:** confirmed requirements are `APPROVED` and audit-logged.
   - _2026-11-19 (Module 2): answer / skip / assume, re-run keeps your edits, Gate 1 blocked while questions are open; confirmation approves and audit-logs._
-- [ ] **PF-027 — SSE progress** · Depends on: PF-022
-  - `GET /api/agent-runs/:id/stream`; UI shows stage progress and errors.
+- [x] **PF-027 — SSE progress** · Depends on: PF-022
+  - `GET /api/projects/:id/runs/live?stages=…` (SSE; per project, not per run — see ADR-034); UI shows stage progress and errors.
   - **Done when:** progress events appear in the UI during a run.
 - [x] **PF-028 — Eval runner v1** · Depends on: PF-004, PF-024
   - `pnpm eval` runs discovery on all fixtures; reports schema validity, question count, expected-requirement recall.
@@ -163,9 +172,10 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - **Done when:** report written to `tests/ai-evals/reports/<date>.md`.
   - _2026-11-19 (Module 2): `pnpm eval` / `pnpm eval:quick` (Vitest config `vitest.eval.config.mts`) write `tests/ai-evals/reports/<date>-discovery-<provider>.md` with ADR-010 Tier 1 scores. Tier 2 judge → PF-029._
 
-- [ ] **PF-029 — Eval Tier 2 judge** · Depends on: PF-028
+- [x] **PF-029 — Eval Tier 2 judge** · Depends on: PF-028
   - LLM judge for expected items Tier 1 missed (ADR-010): `tests/ai-evals/judge.v1.md`, temperature 0, JSON verdict.
   - **Done when:** full `pnpm eval` reports which tier matched each item.
+  - _2026-11-22: `tests/ai-evals/judge.ts` + `judge.v1.md`; full runs on a real provider judge the Tier 1 misses (one call per fixture and list) and the report lists the tier per expected item; quick and demo runs skip Tier 2._
 
 ## Week 3 — PRD and stories
 
@@ -192,7 +202,7 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - Business rules: every story links ≥ 1 approved requirement; no dependency cycles.
   - **Done when:** eval coverage (requirements with ≥ 1 story) ≥ 90 % on fixtures.
   - _2026-11-19 (Module 4): `story` stage (`story.v1.md`) + demo engine. Fills coverage gaps only; rules, assumptions and answers that name no user attach to the story they constrain; rejection reasons and reviewer notes feed regeneration. `pnpm eval` backlog report: coverage 100 % (24/24) on the quick set, 5/5 valid. See ADR-014._
-- [ ] **PF-035 — Split `components/prd/prd-workspace.tsx`** · Depends on: PF-031
+- [x] **PF-035 — Split `components/prd/prd-workspace.tsx`** · Depends on: PF-031 · Done 2026-11-22: toolbar, Gate 2 and traceability panels moved to their own files.
   - 370 lines (CLAUDE.md asks for ~300): move the toolbar, Gate 2 panel and traceability panel into their own files.
   - **Done when:** every PRD component file is under 300 lines and the PRD browser test still passes.
 
@@ -265,10 +275,11 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - Some Jira Cloud sites (2026 reports) don't link stories to epics created in the same CSV. Offer an "epics
     first" file, then a children file whose Parent column holds the epic keys the PM pastes back in.
   - **Done when:** both files import into a Jira test project and every story shows its epic.
-- [ ] **PF-056 — Requirement history view** · Depends on: PF-053
+- [x] **PF-056 — Requirement history view** · Depends on: PF-053
   - On the discovery page, show each requirement's versions side by side (v1 → v2 wording, evidence, the change
     request and reason), like the PRD's version compare.
   - **Done when:** every requirement with more than one version can be compared, and each version links its CR.
+  - 2026-11-22: done — `GET /api/projects/:id/requirements/history`, word diff, "Compare versions" on the discovery page.
 - [ ] **PF-055 — Sprint close-out and measured velocity** (stretch) · Depends on: PF-052
   - Close a sprint (done / carried over), move unfinished stories to the next sprint, and suggest velocity from the
     average of the last three closed sprints instead of the 5-points-per-person starting rule (ADR-017).
@@ -277,12 +288,21 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
 
 ## Week 6 — Quality and launch
 
-- [ ] **PF-060 — E2E test** · Depends on: PF-050
+- [~] **PF-060 — E2E test** · Depends on: PF-050
   - Playwright: sign up → project → discovery → clarify → PRD → backlog → export (model mocked).
-- [ ] **PF-061 — Role permissions** · Depends on: PF-042
+  - *2026-11-20:* Playwright config (demo mode, port 3100) + J1 (project, dumb-user and CSP checks) and J2
+    (discovery) specs written. *2026-11-22:* `@playwright/test` 1.65.1 added; J1 + J2 pass on the developer's Mac
+    (`pnpm test:e2e`, demo mode). Left: J3–J8 from the test plan.
+- [x] **PF-061 — Role permissions** · Depends on: PF-042
   - Only Owner/Admin/PM approve; Developer/QA edit drafts and comment. Tests per role.
-- [ ] **PF-062 — Rate limits + cost caps** · Depends on: PF-021
+  - *2026-11-20:* `route-matrix.test.ts` calls every write route as Developer and QA: 403 except the 9 member
+    writes the ADRs allow (sources, drafts, answers, PRD draft version, export). Same test: another workspace
+    gets 400/404 on every route with this workspace's ids and sees none of them (ADR-035).
+- [x] **PF-062 — Rate limits + cost caps** · Depends on: PF-021
   - Per-workspace request limit and monthly token budget; clear error when exceeded.
+  - *2026-11-20:* checked before every AI run from the run log (works across servers): 12 runs per user per
+    minute, 2M tokens per workspace per UTC month, both from env; 429 `RATE_LIMITED` with the reason. Live
+    views capped at 5 per user per server (ADR-035).
 - [ ] **PF-063 — Full eval report** · Depends on: PF-045
   - Run all fixtures; save `docs/EVAL_REPORT.md` with results against targets.
 - [ ] **PF-064 — Production deploy + demo seed** · Depends on: PF-016, PF-060
@@ -339,15 +359,67 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
     stay code arrays instead of join tables. Checked on Mumbai in Chrome: generate (9 stories, 25 criteria,
     35 tasks) → approve 9 (Gate 3 passed) → editing an approved story refused (409) → v2 copies its criteria and
     tasks → traceability 98. First page after a restart hit CONNECT_TIMEOUT again: the connection now retries once.
-- [~] **PF-074 — Sprints, exports and change requests in Postgres** · Depends on: PF-073
+- [x] **PF-074 — Sprints, exports and change requests in Postgres** · Depends on: PF-073
   - **Done when:** sprint planning, Jira export and requirement changes work with `DATA_DRIVER=postgres`.
   - *2026-11-20:* code and tests done (ADR-030; PGlite `planning-data.test.ts` 9/9). Exports were already audit
     entries in Postgres. Fixed: approving a change wrote the approver's name into `requirements.approved_by` (uuid).
-    Left: CI, `db:migrate` on Mumbai, a click-through.
-- [ ] **PF-075 — Postgres-only mode** · Depends on: PF-074
+    Checked on Mumbai in Chrome: settings + plan + move out/in (stories depending on a draft held back, as
+    designed); CR-01 proposed → approved (FR-08 v2, approver stored as user id) → second approve 409 → review
+    mark saved; Changes page renders from Postgres.
+- [~] **PF-075 — Postgres-only mode** · Depends on: PF-074
   - With `DATA_DRIVER=postgres` nothing touches the file store; demo mode keeps it.
   - Validate the `agent_run_id` foreign keys added `NOT VALID` in PF-071 (clear pre-PF-071 test data first).
   - **Done when:** the app runs with a read-only file system (unblocks PF-064).
+  - *2026-11-20:* demo store refused when `DATA_DRIVER=postgres` (ADR-031); all Postgres-mode integration tests
+    pass with the guard on; migration 0009 clears pre-PF-071 run links and validates the run foreign keys. Left:
+    `db:migrate` on Mumbai and a click through every page.
+
+## Week 8 — Hardening (from the test plan, 2026-11-20)
+
+- [x] **PF-076 — Log redaction** · Depends on: PF-005
+  - The logger masks secret-named keys and credential-shaped values, cuts strings over 300 chars, reduces errors
+    to name + message.
+  - **Done when:** unit tests show keys, JWTs and long document text never reach a log line.
+- [x] **PF-077 — Architecture lint rules** · Depends on: PF-001
+  - ESLint: route handlers can't import repositories, the DB, stages or `openai`; UI can't import `src/ai`
+    (except the pure rule checkers) or the DB; files over 300 lines warn. Two routes moved to a run service.
+  - **Done when:** `pnpm lint` fails on a client file importing the LLM client.
+- [ ] **PF-078 — Rotate secrets before real data** **(ask first)** · Depends on: —
+  - Rotate the Supabase secret key, DB password and OpenAI key pasted in chat earlier (SEC-21); update
+    `.env.local` and Vercel. Done by the user in the dashboards.
+  - **Done when:** old keys are revoked and the app still signs in and runs discovery.
+- [ ] **PF-080 — Minor findings from the UI and tests review (2026-11-22)** · Depends on: —
+  - `app/dashboard/layout.tsx` disables `no-restricted-imports` to read `dataBackend()` from `src/db/scope`:
+    expose it from `src/lib` (next to `authDriver`) and drop the suppression.
+  - Add `expect(arr.length).toBeGreaterThan(0)` before each `.every(...)` in discovery-data, planning-data and
+    backlog-data tests (an empty array passes vacuously).
+  - The `*-data.test.ts` files depend on earlier `it`s (`changeId`, approvals): move shared setup to `beforeAll`
+    or make each `it` build its own prerequisites, so `-t` and `.only` work.
+  - `tests/unit/ai/budget.test.ts` and `route-matrix.test.ts` delete `AI_RUNS_PER_USER_PER_MINUTE` in `afterEach`:
+    use `vi.stubEnv` and `vi.unstubAllEnvs()` so a value set by CI or `.env` is restored.
+  - Tests still missing from the review: an inflating-entry zip test (header lies low, data is huge) and a
+    prompt-injection test that source text stays inside the untrusted-data block; the `onFile` upload path in
+    `sources-panel.tsx` (sends `FormData`).
+  - **Done when:** each item above is done or has a reason noted here.
+
+- [ ] **PF-081 — Deferred minors from the final review (2026-11-22)** · Depends on: —
+  - `run-progress.test.ts:74`: `slice(lastIndexOf + 2)` misbehaves when there is no frame boundary (latent, can only cause a false failure).
+  - `run-progress.test.ts:59`: the `started` promise is not awaited.
+  - The `empty:hidden` wrapper never hides now (cosmetic, a few px).
+  - `word-diff`: add tests for repeated words and punctuation.
+  - History panel refetches on every reopen (acceptable; cache if it shows up in traces).
+  - Judge: keep the "judge output invalid" reason for non-matches instead of reporting "missed".
+  - Extract `tier2Status()` from `discovery.eval.ts` (QUICK/demo gating) and test it.
+  - Add tests for the judge's phrase/index fallback paths.
+  - ADR-010 token cap: add `EVAL_TOKEN_CAP` or correct the ADR, once the user decides.
+  - **Done when:** each item above is done or has a reason noted here.
+
+- [x] **PF-082 — Eval token cap** · Depends on: PF-029
+  - ADR-010's cost guard: one `EVAL_TOKEN_CAP` for a whole `pnpm eval` run, shared by every eval file; stops before
+    the next model call once reached, reports what ran, then fails with how to raise it. Demo engine uncapped.
+  - **Done when:** unit tests show the cap refuses the next call, holds across two eval files, and the report states
+    usage and an early stop.
+  - *2026-11-22:* built (`tests/ai-evals/token-cap.ts`, `global-setup.ts`); 11 unit tests, red-green checked.
 
 ## Later (not scheduled)
 

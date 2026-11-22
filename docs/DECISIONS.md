@@ -108,6 +108,20 @@ misses ("notify when a transaction fails" vs "notify on failed transactions"). G
 regressions without blocking on targets we haven't yet shown are reachable.
 **Consequences:** PF-028 builds both tiers, the report and the path-filtered CI job; judge prompt changes bump its
 version like stage prompts.
+**Follow-up (2026-11-22, PF-029):** the judge sends `temperature: 0` except to models that reject it (ids starting
+`gpt-5` and the o-series, which accept only the default; `supportsTemperature` in `src/ai/openai-client.ts`). One judge
+call per fixture and list (requirements, question topics, conflicts, vague terms) carries all of that list's Tier 1
+misses; an invalid verdict counts as no match (an over-long reason is cut to 200 characters, and each verdict is
+validated alone), so the judge can only lower recall, never crash a run. On gpt-5 and o-series models (the default
+model gpt-5-mini included) the judge therefore runs at the model's default temperature, so verdicts may vary between
+runs; the report states the temperature actually used.
+**Follow-up (2026-11-22, PF-082 — the cost guard above, decided by the user: "build the cap"):** `EVAL_TOKEN_CAP`
+(default 1,000,000 tokens in + out) covers a whole `pnpm eval` run: a global setup creates one usage log that every
+eval file appends to, so the cap holds across Vitest's parallel workers. A call is refused once the run has reached the
+cap; calls already in flight finish, so a run can pass it by at most one call per worker. The discovery eval then
+writes a report of the fixtures that ran, marked "Stopped early", and fails with how to raise the cap. Every report
+states the tokens used against the cap. The demo engine is never capped (it costs nothing), so `eval:quick` in CI is
+unaffected. The default is an estimate; tune it from the token line of the first real reports.
 
 ### ADR-011 — Demo mode first, real services behind the same interfaces
 **Status:** ACCEPTED · 2026-11-18 · decided by Claude acting as PM, at the user's request
@@ -718,3 +732,95 @@ approved requirements, so a decided one must stay as it was decided.
 **Consequences:** `technical_tasks.sprint_id` stays unused: placements are by story code (ADR-017), so there is no
 foreign key to add. Plans and changes made before today stay in the demo file. PF-075 can now take the file
 store out of Postgres mode.
+
+### ADR-031 — Postgres-only mode (PF-075)
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request
+**Decision:**
+- With `DATA_DRIVER=postgres`, `getDataStore()` throws (`STORE_OFF`) instead of opening the demo file. Every
+  module now has a Postgres repository (PF-015, PF-070–PF-074), so nothing should reach the file. If something
+  does, it fails loudly in tests and in dev instead of silently writing to disk. Demo mode keeps the file (or
+  memory in tests) as before.
+- Migration `0009_validate_run_links.sql` makes `discoveries.agent_run_id` nullable, clears `agent_run_id` on
+  rows whose run never reached Postgres (rows written before PF-071; the rows themselves are kept), and validates
+  the three foreign keys added `NOT VALID` in 0005.
+**Why:** Vercel's functions have a read-only file system (only `/tmp`, per instance), so production needs every
+read and write in Postgres. A hard refusal proves that, where a fallback would hide it.
+**Consequences:** PF-064 (production deploy) is unblocked. Older discoveries show no run in the log. Running the
+app with `DATA_DRIVER=postgres` but without Supabase sign-in was already refused (ADR-022).
+
+### ADR-032 — Nonce-based Content Security Policy (PF-019)
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request
+**Decision:**
+- `proxy.ts` makes a fresh nonce per request and sets the CSP (`src/lib/csp.ts`) on the response and on the
+  request. Next.js reads it from the request and puts the nonce on its own scripts.
+- `script-src 'self' 'nonce-…' 'strict-dynamic'`: no `'unsafe-inline'`. A script runs only if it carries the
+  nonce or a nonce-bearing script loaded it. Development adds `'unsafe-eval'` for React Refresh. The other
+  directives are unchanged from ADR-023 (`frame-ancestors 'none'`, `object-src 'none'`, form posts only to
+  Supabase Auth and GitHub).
+- `style-src` keeps `'unsafe-inline'`: React `style` attributes need it, and styles can't run code.
+- The root layout calls `connection()`, so every page renders per request. A prebuilt static page couldn't carry
+  that request's nonce. The landing page and sign-in page are the only ones that lose static rendering; they're
+  small.
+- The CSP left the static headers in `next.config.ts`; the other security headers stay there.
+**Why:** Inline-script XSS is the attack a CSP exists to stop. With `'unsafe-inline'` an injected `<script>` would
+run; with a nonce it can't, because it can't know that request's nonce.
+**Consequences:** Every page is dynamic, a few ms per render. Checked in Chrome on all 8 project pages and the
+dashboard: no violations, and client code (forms, menus) works.
+
+### ADR-033 — Document upload: extract text on the server, keep only the text (PF-023)
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request
+**Decision:**
+- `POST /api/projects/:id/sources` also takes a multipart upload (`file`). The server extracts the text and stores
+  it as a `source_documents` row (`kind: "file"`). The original file is not kept, so there's no Storage bucket to
+  secure (SEC-12 becomes N/A until originals are stored).
+- **Formats:** PDF via `unpdf` (serverless build of pdf.js, no worker), Word `.docx` via `mammoth` (raw text), and
+  `.txt`/`.md`/`.csv` as UTF-8. New dependencies, pinned: `unpdf` 2.2.1 and `mammoth` 1.13.0.
+- **Checks before any parser runs (SEC-11):** 10 MB maximum and an extension allow-list. The content must match
+  the extension: `%PDF-` for PDFs, a zip containing `word/document.xml` for .docx, valid UTF-8 without NUL bytes
+  for text. A .docx is refused if its zip directory declares more than 50 MB unpacked or more than 1,000 entries
+  (zip bombs), checked without unpacking. PDFs are limited to 50 pages, checked before the text is read.
+- Text over 50,000 characters is cut with a visible "[Truncated: …]" note, which the model reads too. The API
+  returns `truncated` and `pages`. A file with no text (a scanned image) is refused with a hint.
+**Why:** Briefs and notes arrive as PDFs and Word files. Keeping only text keeps the data model and the privacy
+story simple. Validating before parsing limits what a hostile file can reach.
+**Consequences:** Scanned PDFs need OCR, which isn't included. The parsers still run in the app process; isolating
+them (a worker or a separate function) is a later hardening step. A .docx whose zip directory understates its
+size would pass the pre-check; the 10 MB upload cap bounds the damage.
+
+### ADR-034 — Live run progress: save steps as they happen, stream them per project (PF-027)
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request
+**Decision:**
+- The stage runner saves the run's steps to `agent_runs.events` as they happen (after "asking the model", after
+  a failed or passed validation), not only at the end. A failed progress save is logged and never fails the run.
+- `GET /api/projects/:id/runs/live?stages=discovery` is a Server-Sent Events stream of `progress` events
+  (`runId, stage, step, message, at`) for runs of those stages that started at most 5 s before the page asked.
+  It replaces the planned `GET /api/agent-runs/:id/stream`: generation requests return only when the run ends,
+  so the page doesn't know the run id while it's running.
+- The stream polls the run log every 500 ms (one indexed query per stage) and stops when the page closes it or
+  after 5 minutes. Same access check as the project (`getProject`, RLS in Postgres).
+- The discovery, PRD and backlog pages open the stream just before they start a run, show the latest step under
+  the button (`aria-live="polite"`), and close it when the run's request returns.
+**Why:** Runs take 10–60 s with a real model; a spinner with no news looks stuck. Polling the database works when
+the run and the stream are served by different server instances (Vercel), where an in-memory emitter wouldn't.
+**Consequences:** A few extra writes per run and up to two reads a second per open page while a run is going.
+Model output isn't streamed token by token; the steps are coarse (prepare, ask, validate, retry, save).
+
+### ADR-035 — Hardening from the test plan: AI budget, log redaction, route matrix, lint rules
+**Status:** ACCEPTED · 2026-11-20 · decided by Claude acting as PM, at the user's request ("fix the gaps")
+**Decision:**
+- **AI budget (PF-062):** before every run, `checkRunBudget` reads the run log: a user may start 12 runs a minute
+  (`AI_RUNS_PER_USER_PER_MINUTE`), a workspace may use 2M tokens per UTC calendar month
+  (`AI_MONTHLY_TOKEN_BUDGET_PER_WORKSPACE`). Over either: 429 `RATE_LIMITED` with the reason. Counting from
+  `agent_runs` needs no new table and holds across Vercel instances. Live views: 5 open per user per server.
+- **Logs (PF-076):** `redact()` runs on every log line: secret-named keys masked, OpenAI/Supabase keys, JWTs and
+  bearer tokens masked anywhere, strings cut at 300 characters, errors reduced to name and message.
+- **Route matrix (PF-061):** one test finds every route on disk and calls it (a) as another workspace with this
+  workspace's ids — must answer 400 or 404 and never echo an id — and (b) as Developer and QA — must answer 403
+  except the member writes the earlier ADRs allow (ADR-014, ADR-027–029). New routes are covered without edits.
+  Tests switch users with `actAs()`, honoured only when `NODE_ENV=test`.
+- **Lint (PF-077):** import rules keep routes thin and the model out of the browser; `max-lines` warns at 300.
+**Why:** The test plan found these as the gaps between the rules in CLAUDE.md and what was enforced.
+**Consequences:** A burst of runs by one user (e.g. re-generating repeatedly) now waits a minute. The token
+budget counts tokens, not dollars; a dollar cap can be added when pricing per model is fixed. Story versioning is
+manager-only while PRD draft versions are open to members (ADR-014 vs ADR-028): kept as decided, flagged for review.
+

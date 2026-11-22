@@ -175,7 +175,8 @@ export const discoveries = pgTable(
     workspaceId: uuid("workspace_id")
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
-    agentRunId: uuid("agent_run_id").notNull(),
+    // Null only for discoveries from before the run log moved to Postgres (PF-075).
+    agentRunId: uuid("agent_run_id"),
     runCount: integer("run_count").notNull(),
     summary: text("summary").notNull(),
     actors: jsonb("actors").$type<string[]>().notNull(),

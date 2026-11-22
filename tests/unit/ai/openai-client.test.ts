@@ -89,4 +89,16 @@ describe("OpenAI client", () => {
     expect(extractOutputText(responsesBody("hi"))).toBe("hi");
     expect(extractOutputText({ output: [] })).toBeNull();
   });
+
+  it("sends temperature only to models that accept it", async () => {
+    for (const [model, expected] of [
+      ["gpt-4.1", true],
+      ["gpt-5-mini", false],
+    ] as const) {
+      const { fetchImpl, bodies } = stubFetch([[200, responsesBody('{"answer":"1"}')]]);
+      const client = createOpenAIClient({ apiKey: "sk-test", model, fetchImpl });
+      await client.generateStructured({ ...request, temperature: 0 });
+      expect("temperature" in bodies[0]!).toBe(expected);
+    }
+  });
 });

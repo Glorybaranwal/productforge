@@ -1,7 +1,7 @@
 import { dataBackend, type WorkspaceScope } from "@/src/db/scope";
 
 import { pgAgentRuns } from "./pg-repository";
-import type { AgentRun, IdempotencyRecord, StageName } from "./schema";
+import type { AgentRun, IdempotencyRecord, RunUsage, StageName, UsageWindow } from "./schema";
 import { storeAgentRuns } from "./store-repository";
 
 /** The AI run log (CLAUDE.md §7) and idempotency records (§8), per workspace. */
@@ -19,6 +19,8 @@ export interface AgentRunRepository {
     projectId: string,
     stage: StageName,
   ): Promise<AgentRun | null>;
+  /** What the AI budget checks need (gap 1 of the test plan, ADR-035). */
+  usage(scope: WorkspaceScope, window: UsageWindow): Promise<RunUsage>;
   findIdempotent(
     scope: WorkspaceScope,
     operation: string,
@@ -35,6 +37,7 @@ export const agentRunRepository: AgentRunRepository = {
   insert: (...a) => (postgres() ? pgAgentRuns : storeAgentRuns).insert(...a),
   update: (...a) => (postgres() ? pgAgentRuns : storeAgentRuns).update(...a),
   findById: (...a) => (postgres() ? pgAgentRuns : storeAgentRuns).findById(...a),
+  usage: (...a) => (postgres() ? pgAgentRuns : storeAgentRuns).usage(...a),
   latestForProject: (...a) => (postgres() ? pgAgentRuns : storeAgentRuns).latestForProject(...a),
   findIdempotent: (...a) => (postgres() ? pgAgentRuns : storeAgentRuns).findIdempotent(...a),
   saveIdempotent: (...a) => (postgres() ? pgAgentRuns : storeAgentRuns).saveIdempotent(...a),

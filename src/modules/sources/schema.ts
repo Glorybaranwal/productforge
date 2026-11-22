@@ -2,7 +2,11 @@ import { z } from "zod";
 
 /** Largest text source we accept (characters). Keeps prompts within model limits. */
 export const MAX_SOURCE_CHARS = 50_000;
-export const ACCEPTED_FILE_TYPES = [".txt", ".md", ".markdown", ".csv"] as const;
+export const ACCEPTED_FILE_TYPES = [".pdf", ".docx", ".txt", ".md", ".markdown", ".csv"] as const;
+/** Upload limits (D-08, SEC-11): bytes on the wire, PDF pages, and unpacked size of a .docx. */
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const MAX_PDF_PAGES = 50;
+export const MAX_UNPACKED_BYTES = 50 * 1024 * 1024;
 
 export const SourceDocument = z.object({
   id: z.uuid(),

@@ -61,3 +61,7 @@ export const IdempotencyRecord = z.object({
   createdAt: z.iso.datetime(),
 });
 export type IdempotencyRecord = z.infer<typeof IdempotencyRecord>;
+
+/** Runs the user started since `userSince`, and tokens the workspace used since `workspaceSince`. */
+export type UsageWindow = { userSince: string; workspaceSince: string };
+export type RunUsage = { userRuns: number; workspaceTokens: number };

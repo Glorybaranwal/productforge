@@ -29,7 +29,15 @@ import type { WorkspaceContext } from "@/src/modules/workspaces/schema";
 import { ensureWorkspace } from "@/src/modules/workspaces/service";
 import { BRIEF } from "@/tests/helpers/discovery";
 
-import { createRlsDb, PROJECT, type RlsHarness, USERS, WS } from "./rls-harness";
+import {
+  createRlsDb,
+  expectPgCode,
+  expectRlsRefusal,
+  PROJECT,
+  type RlsHarness,
+  USERS,
+  WS,
+} from "./rls-harness";
 
 let h: RlsHarness;
 let ana: WorkspaceContext;
@@ -141,9 +149,9 @@ describe("backlog in Postgres (PF-073)", () => {
       .from(acceptanceCriteria)
       .where(eq(acceptanceCriteria.storyId, story.id));
     expect(kept.length).toBe(story.criteria.length);
-    await expect(
+    await expectRlsRefusal(
       h.as(USERS.ana, (tx) => tx.delete(stories).where(eq(stories.id, story.id))),
-    ).rejects.toThrow();
+    );
   });
 
   it("edits an approved story as version 2, copying its criteria and tasks", async () => {
@@ -174,7 +182,9 @@ describe("backlog in Postgres (PF-073)", () => {
       projectId: PROJECT.bravo,
       status: "DRAFT" as const,
     };
-    await expect(backlogRepository.insert(ben, { criteria: [smuggled] })).rejects.toThrow();
+    await expectPgCode(backlogRepository.insert(ben, { criteria: [smuggled] }), "23503"); // foreign key
+    const inAna = { ...smuggled, workspaceId: WS.ana, projectId: alpha };
+    await expectRlsRefusal(backlogRepository.insert(forged, { criteria: [inAna] })); // the policy
   });
 
   it("passes the data-isolation audit with the backlog in place", async () => {

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/app-shell";
+// eslint-disable-next-line no-restricted-imports -- reads the DATA_DRIVER setting only, no data
 import { dataBackend } from "@/src/db/scope";
 import { AppError } from "@/src/lib/errors";
 import { authDriver } from "@/src/lib/supabase/config";

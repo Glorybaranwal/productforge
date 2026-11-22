@@ -15,6 +15,9 @@ import { FindingsPanel } from "./findings-panel";
 import { QuestionsPanel } from "./questions-panel";
 import { RequirementsPanel } from "./requirements-panel";
 import { SourcesPanel } from "./sources-panel";
+import { RunProgressNote } from "@/components/runs/run-progress-note";
+import { useRunProgress } from "@/components/runs/use-run-progress";
+
 import { useAction } from "./use-action";
 
 type Props = { project: Project; state: DiscoveryState; canManage: boolean };
@@ -110,16 +113,19 @@ function RunBar({
   latestRun,
 }: RunBarProps) {
   const action = useAction();
+  const progress = useRunProgress(projectId, ["discovery"]);
   const [runError, setRunError] = useState<string | null>(null);
 
   async function run() {
     setRunError(null);
+    progress.start();
     const result = await action.run(() =>
       apiRequest<{ status: string; error: string | null }>(`/api/projects/${projectId}/discovery`, {
         method: "POST",
         headers: { "Idempotency-Key": newId() },
       }),
     );
+    progress.stop();
     if (result?.status === "failed") setRunError(result.error ?? "The AI step failed.");
   }
 
@@ -150,6 +156,7 @@ function RunBar({
             {(latestRun.tokensIn + latestRun.tokensOut).toLocaleString("en")} tokens
           </p>
         )}
+        <RunProgressNote busy={action.busy} message={progress.message} />
         {(runError || action.error) && (
           <p role="alert" className="text-destructive">
             {runError ?? action.error}

@@ -10,6 +10,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/ai-evals/**/*.eval.ts"],
+    // One token-usage log per run, shared by every eval file (ADR-010 cost guard).
+    globalSetup: ["tests/ai-evals/global-setup.ts"],
     testTimeout: 600_000,
   },
 });

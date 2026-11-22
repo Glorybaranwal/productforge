@@ -23,7 +23,7 @@ import type { WorkspaceContext } from "@/src/modules/workspaces/schema";
 import { ensureWorkspace } from "@/src/modules/workspaces/service";
 import { BRIEF } from "@/tests/helpers/discovery";
 
-import { createRlsDb, PROJECT, type RlsHarness, USERS, WS } from "./rls-harness";
+import { createRlsDb, expectRlsRefusal, PROJECT, type RlsHarness, USERS, WS } from "./rls-harness";
 
 let h: RlsHarness;
 let ana: WorkspaceContext;
@@ -140,12 +140,12 @@ describe("discovery data in Postgres (PF-070)", () => {
     // A bug that points Ben at Ana's workspace still finds nothing.
     const forged = { ...ben, workspace: { ...ben.workspace, id: WS.ana } };
     expect(await requirementRepository.listByProject(forged, alpha)).toEqual([]);
-    // Ben can't attach a requirement to Ana's project from his own workspace either.
+    // Ben, acting as Ana's workspace, can't write a requirement into her project: the policy refuses it.
     const now = new Date().toISOString();
-    await expect(
-      requirementRepository.insert(ben, {
+    await expectRlsRefusal(
+      requirementRepository.insert(forged, {
         id: crypto.randomUUID(),
-        workspaceId: WS.ben,
+        workspaceId: WS.ana,
         projectId: alpha,
         version: 1,
         text: "Smuggled requirement",
@@ -162,7 +162,7 @@ describe("discovery data in Postgres (PF-070)", () => {
         approvedBy: null,
         approvedAt: null,
       }),
-    ).rejects.toThrow();
+    );
     const smuggled = await h.db
       .select()
       .from(requirements)

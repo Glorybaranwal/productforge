@@ -123,4 +123,43 @@ export async function failure(work: Promise<unknown>): Promise<string> {
   }
 }
 
+/** The Postgres error behind `err` (drizzle wraps it as `cause`), if any. */
+const pgError = (err: unknown) => {
+  type E = { code?: string; message?: string; cause?: unknown };
+  for (let e = err as E | undefined; e; e = e.cause as E | undefined)
+    if (typeof e.code === "string" && /^[0-9A-Z]{5}$/.test(e.code)) return e as E;
+  return undefined;
+};
+
+async function rejection(work: Promise<unknown>): Promise<unknown> {
+  try {
+    await work;
+  } catch (err) {
+    return err;
+  }
+  throw new Error("Expected the statement to be refused, but it succeeded");
+}
+
+/**
+ * Asserts `work` was refused by row-level security (Postgres 42501, "violates row-level security
+ * policy", or the FORBIDDEN the repositories map it to), not by some other error such as a missing column, a NOT NULL or a foreign-key violation.
+ */
+export async function expectRlsRefusal(work: Promise<unknown>): Promise<void> {
+  const err = (await rejection(work)) as Error & { cause?: Error; code?: string };
+  const detail = `${err.message} ${err.cause?.message ?? ""}`;
+  // The repositories turn a 42501 into FORBIDDEN (src/db/scope.ts, isRlsDenial); nothing else does.
+  const mapped = err.code === "FORBIDDEN" && err.message === "You don't have access to do that";
+  if (!mapped && pgError(err)?.code !== "42501" && !/row-level security/i.test(detail))
+    throw new Error(`Expected an RLS refusal (42501), got: ${detail.slice(-300)}`);
+}
+
+/** Asserts `work` failed with this Postgres error code (23503 foreign key, 23505 unique, …). */
+export async function expectPgCode(work: Promise<unknown>, code: string): Promise<void> {
+  const err = (await rejection(work)) as Error & { cause?: Error };
+  if (pgError(err)?.code !== code)
+    throw new Error(
+      `Expected Postgres error ${code}, got ${pgError(err)?.code ?? "none"}: ${(err.cause?.message ?? err.message).slice(-300)}`,
+    );
+}
+
 export const names = (rows: { name: string }[]) => rows.map((r) => r.name).sort();

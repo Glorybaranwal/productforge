@@ -104,6 +104,7 @@ Errors: `{ error: { code, message, details? } }`.
 | POST | /api/projects/:id/documents | Upload a document (PDF/DOCX, PF-023) |
 | GET / POST / DELETE | /api/projects/:id/sources[/:sourceId] | Text sources: pasted or .txt/.md |
 | POST | /api/projects/:id/requirements | Add a requirement by hand |
+| GET | /api/projects/:id/requirements/history | Versions of every changed requirement, each with its change request (PF-056) |
 | PATCH | /api/requirements/:id | Edit, reject or restore a draft requirement |
 | GET / POST | /api/projects/:id/discovery | Discovery state / run discovery (Idempotency-Key) |
 | PATCH | /api/questions/:id | Answer, skip or assume a question (re-run via POST discovery) |
@@ -134,7 +135,8 @@ Errors: `{ error: { code, message, details? } }`.
 | POST | /api/projects/:id/changes | Propose a change (`kind`, …, `reason`) and run the impact analysis (Idempotency-Key) |
 | POST | /api/changes/:id/analyze · /approve · /discard | Re-run the analysis · put in force (next requirement version) · drop |
 | POST | /api/changes/:id/reviews | Mark a flagged item (`PRD` or a story code) reviewed, with an optional note |
-| GET | /api/agent-runs/:id · /stream | Run status / SSE |
+| GET | /api/agent-runs/:id | Run status |
+| GET | /api/projects/:id/runs/live?stages=… | Live run steps (SSE, ADR-034) |
 
 ## Security
 

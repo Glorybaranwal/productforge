@@ -20,6 +20,14 @@ type ResponsesApiBody = {
   error?: { message?: string };
 };
 
+/**
+ * Whether to send `temperature` to a model. The gpt-5 and o-series reasoning models accept only the
+ * default, so sending it would fail the request.
+ */
+export function supportsTemperature(model: string): boolean {
+  return !model.startsWith("gpt-5") && !/^o\d/.test(model);
+}
+
 /** First text block of a Responses API result. */
 export function extractOutputText(body: ResponsesApiBody): string | null {
   for (const item of body.output ?? []) {
@@ -105,9 +113,13 @@ export function createOpenAIClient(options: Options): LLMClient {
             ]
           : []),
       ];
+      const used = request.model ?? model;
       const body = await call({
-        model: request.model ?? model,
+        model: used,
         input,
+        ...(request.temperature !== undefined && supportsTemperature(used)
+          ? { temperature: request.temperature }
+          : {}),
         text: {
           format: {
             type: "json_schema",

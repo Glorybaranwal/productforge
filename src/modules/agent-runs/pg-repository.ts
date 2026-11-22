@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 
 import { agentRuns, idempotencyRecords } from "@/src/db/schema";
 import { inUserTx, isUniqueViolation, isUuid, withDates } from "@/src/db/scope";
@@ -98,6 +98,28 @@ export const pgAgentRuns: AgentRunRepository = {
         .from(agentRuns)
         .where(and(eq(agentRuns.workspaceId, scope.workspace.id), eq(agentRuns.id, id)));
       return row ? toRun(row) : null;
+    }),
+
+  usage: (scope, { userSince, workspaceSince }) =>
+    inUserTx(scope, async (tx) => {
+      const ws = eq(agentRuns.workspaceId, scope.workspace.id);
+      const [user] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(agentRuns)
+        .where(
+          and(
+            ws,
+            eq(agentRuns.createdBy, scope.session.userId),
+            gte(agentRuns.createdAt, new Date(userSince)),
+          ),
+        );
+      const [workspace] = await tx
+        .select({
+          n: sql<number>`coalesce(sum(${agentRuns.tokensIn} + ${agentRuns.tokensOut}), 0)::bigint`,
+        })
+        .from(agentRuns)
+        .where(and(ws, gte(agentRuns.createdAt, new Date(workspaceSince))));
+      return { userRuns: Number(user?.n ?? 0), workspaceTokens: Number(workspace?.n ?? 0) };
     }),
 
   latestForProject: (scope, projectId, stage) =>

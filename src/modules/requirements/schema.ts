@@ -69,7 +69,8 @@ export type Ambiguity = z.infer<typeof Ambiguity>;
 export const Discovery = z.object({
   projectId: z.uuid(),
   workspaceId: z.uuid(),
-  agentRunId: z.uuid(),
+  /** Null for discoveries from before the run log moved to Postgres (PF-075). */
+  agentRunId: z.uuid().nullable(),
   runCount: z.number().int().positive(),
   summary: z.string(),
   actors: z.array(z.string()),

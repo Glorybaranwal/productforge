@@ -1,3 +1,4 @@
+import { extractSourceText } from "./extract";
 import { AppError, parseOrThrow } from "@/src/lib/errors";
 import { newId, nowIso } from "@/src/lib/ids";
 import { recordAudit } from "@/src/modules/audit/service";
@@ -67,4 +68,23 @@ export async function deleteSource(
     action: "source.removed",
     diff: { source: { from: source.name, to: null } },
   });
+}
+
+/**
+ * Adds an uploaded file as a source (PF-023): its text is extracted on the server and stored; the
+ * file itself is not kept. `truncated` says the text was cut at the source limit.
+ */
+export async function addUploadedSource(
+  ctx: WorkspaceContext,
+  projectId: string,
+  file: { name: string; bytes: Uint8Array },
+): Promise<{ source: SourceDocument; truncated: boolean; pages: number | null }> {
+  await getProject(ctx, projectId);
+  const { text, truncated, pages } = await extractSourceText(file.name, file.bytes);
+  const source = await addSource(ctx, projectId, {
+    name: file.name.slice(0, 120) || "Uploaded file",
+    kind: "file",
+    text,
+  });
+  return { source, truncated, pages };
 }

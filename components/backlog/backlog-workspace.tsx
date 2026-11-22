@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { useAction } from "@/components/discovery/use-action";
+import { RunProgressNote } from "@/components/runs/run-progress-note";
+import { useRunProgress } from "@/components/runs/use-run-progress";
 import { ReviewSummary } from "@/components/impact/review-flags";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -196,6 +198,7 @@ function Toolbar({
   onAdd: () => void;
 }) {
   const generate = useAction();
+  const progress = useRunProgress(project.id, ["story", "qa", "task"]);
   const [runError, setRunError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [manualCopy, setManualCopy] = useState<string | null>(null);
@@ -204,6 +207,7 @@ function Toolbar({
 
   async function run() {
     setRunError(null);
+    progress.start();
     const result = await generate.run(() =>
       apiRequest<{ status: string; error: string | null }>(
         `/api/projects/${project.id}/backlog/generate`,
@@ -213,6 +217,7 @@ function Toolbar({
         },
       ),
     );
+    progress.stop();
     if (result?.status === "failed") setRunError(result.error ?? "The AI step failed.");
   }
 
@@ -267,6 +272,7 @@ function Toolbar({
         </>
       )}
       <div className="w-full space-y-1 text-xs text-muted-foreground empty:hidden">
+        <RunProgressNote busy={generate.busy} message={progress.message} />
         {state.runs.length > 0 && (
           <p data-testid="latest-backlog-runs">
             Last runs:{" "}

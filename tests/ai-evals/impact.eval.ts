@@ -6,7 +6,7 @@
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, inject, it } from "vitest";
 
 import { getLLMClient } from "@/src/ai/llm-client";
 import { loadPrompt } from "@/src/ai/prompts/load";
@@ -17,6 +17,7 @@ import { ImpactOutput } from "@/src/modules/impact/schema";
 import { buildFixtureBacklog } from "@/tests/helpers/impact-input";
 
 import { EvalFixture } from "./fixture-schema";
+import { cappedEvalClient } from "./token-cap";
 
 const FIXTURES = fileURLToPath(new URL("./fixtures/", import.meta.url));
 const REPORTS = fileURLToPath(new URL("./reports/", import.meta.url));
@@ -36,7 +37,7 @@ type Row = {
 
 describe("Impact eval (quick set)", () => {
   it("explains changes against only the items the rules found, and rates them sensibly", async () => {
-    const llm = getLLMClient();
+    const { llm } = cappedEvalClient(getLLMClient(), inject("evalUsageFile"));
     const system = await loadPrompt("impact.v1.md");
     const fixtures = readdirSync(FIXTURES)
       .filter((f) => f.endsWith(".json"))
