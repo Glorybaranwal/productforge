@@ -291,7 +291,8 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
 - [~] **PF-060 — E2E test** · Depends on: PF-050
   - Playwright: sign up → project → discovery → clarify → PRD → backlog → export (model mocked).
   - *2026-11-20:* Playwright config (demo mode, port 3100) + J1 (project, dumb-user and CSP checks) and J2
-    (discovery) specs written, not yet run: needs `@playwright/test` installed. Left: J3–J8 from the test plan.
+    (discovery) specs written. *2026-11-22:* `@playwright/test` 1.65.1 added; J1 + J2 pass on the developer's Mac
+    (`pnpm test:e2e`, demo mode). Left: J3–J8 from the test plan.
 - [x] **PF-061 — Role permissions** · Depends on: PF-042
   - Only Owner/Admin/PM approve; Developer/QA edit drafts and comment. Tests per role.
   - *2026-11-20:* `route-matrix.test.ts` calls every write route as Developer and QA: 403 except the 9 member
