@@ -44,10 +44,10 @@ try {
     name: user.name?.trim() || email.split("@")[0]!,
     email,
   });
-  const { projectId, created } = await seedDemoProject(ctx);
-  console.log(
-    created ? "Created the demo project." : "The demo project already exists; nothing changed.",
-  );
+  const { projectId, created, completed } = await seedDemoProject(ctx);
+  if (!completed.length) console.log("Already complete; nothing changed.");
+  else
+    console.log(`${created ? "Created" : "Finished"} the demo project: ${completed.join(", ")}.`);
   console.log(`${appUrl()}/dashboard/projects/${projectId}`);
 } catch (err) {
   console.error(`db:seed failed: ${err instanceof Error ? err.message : String(err)}`);

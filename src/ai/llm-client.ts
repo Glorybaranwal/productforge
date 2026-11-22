@@ -12,7 +12,11 @@ export function setLLMClient(client: LLMClient | undefined): void {
   override = client;
 }
 
-/** Runs `fn` with `client` in effect, then puts back whichever client was set before (even if `fn` throws). */
+/**
+ * Runs `fn` with `client` in effect, then puts back whichever client was set before (even if `fn`
+ * throws). It swaps a process-wide client, so concurrent requests would see it: use it only in
+ * scripts and tests, never inside the Next server.
+ */
 export async function withLLMClient<T>(client: LLMClient, fn: () => Promise<T>): Promise<T> {
   const previous = override;
   override = client;
