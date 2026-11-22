@@ -23,8 +23,17 @@ export function useRunProgress(projectId: string, stages: string[]) {
     source.current?.close();
     const events = new EventSource(`/api/projects/${projectId}/runs/live?stages=${key}`);
     events.addEventListener("progress", (e) => {
-      const step = JSON.parse((e as MessageEvent<string>).data) as RunProgress;
-      setMessage(step.message);
+      try {
+        const step = JSON.parse((e as MessageEvent<string>).data) as RunProgress;
+        if (typeof step.message === "string") setMessage(step.message);
+      } catch {
+        // A malformed frame is skipped; the run itself is unaffected.
+      }
+    });
+    // The status line is a nicety: when the stream fails, close it rather than let it retry forever.
+    events.addEventListener("error", () => {
+      events.close();
+      if (source.current === events) source.current = null;
     });
     source.current = events;
   }, [projectId, key]);
