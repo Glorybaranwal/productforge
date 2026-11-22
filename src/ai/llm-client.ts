@@ -12,6 +12,17 @@ export function setLLMClient(client: LLMClient | undefined): void {
   override = client;
 }
 
+/** Runs `fn` with `client` in effect, then puts back whichever client was set before (even if `fn` throws). */
+export async function withLLMClient<T>(client: LLMClient, fn: () => Promise<T>): Promise<T> {
+  const previous = override;
+  override = client;
+  try {
+    return await fn();
+  } finally {
+    override = previous;
+  }
+}
+
 /**
  * OpenAI when OPENAI_API_KEY is set (server only), otherwise the deterministic demo engine
  * (ADR-011). AI_PROVIDER=demo forces the demo engine even with a key.

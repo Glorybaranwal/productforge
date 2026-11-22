@@ -22,7 +22,7 @@
     "db:check": "node scripts/db-check.mjs",
     "db:audit": "node scripts/db-audit.mjs",
     "env:supabase": "node scripts/use-supabase-project.mjs",
-    "db:seed": "echo \"db:seed: not implemented yet (PF-064)\"",
+    "db:seed": "tsx scripts/db-seed.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -61,6 +61,7 @@
     "prettier": "^3.6.0",
     "tailwindcss": "^4.1.0",
     "tw-animate-css": "^1.3.0",
+    "tsx": "4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^4.0.0"
   },
