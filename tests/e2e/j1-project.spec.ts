@@ -28,15 +28,38 @@ test.describe("J1 · create a project", () => {
     await page.getByLabel("Audience").fill("Retail banking customers");
     await page.getByRole("button", { name: "Create project" }).dblclick();
     await expect(page).toHaveURL(/\/dashboard\/projects\/[0-9a-f-]{36}$/);
+
+    // A second create request may still be in flight: read the API until the count stops changing.
+    const countNamed = async () => {
+      const res = await page.request.get("/api/projects");
+      const { projects } = (await res.json()) as { projects: { name: string }[] };
+      return projects.filter((p) => p.name === name).length;
+    };
+    let count = await countNamed();
+    for (let stable = 0; stable < 4;) {
+      await page.waitForTimeout(500);
+      const next = await countNamed();
+      stable = next === count ? stable + 1 : 0;
+      count = next;
+    }
+    expect(count).toBe(1);
+
     await page.goto("/dashboard");
-    await expect(page.getByText(name)).toHaveCount(1);
+    await expect(page.getByRole("link", { name: new RegExp(name) })).toHaveCount(1);
   });
 
   test("security: pages carry a nonce CSP and no inline-script allowance", async ({ request }) => {
     const res = await request.get("/dashboard");
     const csp = res.headers()["content-security-policy"] ?? "";
-    expect(csp).toMatch(/script-src 'self' 'nonce-[^']+'/);
-    expect(csp).not.toContain("'unsafe-inline' 'self'");
+    // The webServer runs `next dev`, where ADR-032 also allows 'unsafe-eval' for React's dev tooling,
+    // so only 'unsafe-inline' is asserted here. The production policy (no 'unsafe-eval' either) is
+    // covered by tests/unit/lib/csp.test.ts.
+    const directive = csp.split(";").map((d) => d.trim().split(/\s+/));
+    const scriptSrc = directive.find(([name]) => name === "script-src") ?? [];
+    expect(scriptSrc.length).toBeGreaterThan(1);
+    expect(scriptSrc).toContain("'self'");
+    expect(scriptSrc.some((v) => v.startsWith("'nonce-"))).toBe(true);
+    expect(scriptSrc).not.toContain("'unsafe-inline'");
     expect(res.headers()["x-content-type-options"]).toBe("nosniff");
   });
 });

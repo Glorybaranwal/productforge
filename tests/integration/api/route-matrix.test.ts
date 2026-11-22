@@ -40,15 +40,90 @@ async function allRoutes(): Promise<Route[]> {
   return routes;
 }
 
-const call = (route: Route, params: Record<string, string>) =>
-  route.handler(
+const key = (route: Route) => `${route.method} ${route.path}`;
+
+/**
+ * A valid minimal body for every mutating route, so a request gets past input validation and reaches
+ * the tenant check (a 400 from `{}` would hide a missing workspace check). `undefined` = no body.
+ * A new mutating route with no entry here fails the test.
+ */
+const VALID_STORY = {
+  title: "Filter transactions",
+  asA: "customer",
+  iWant: "to filter transactions",
+  soThat: "I find payments quickly",
+  priority: "must",
+  requirementCodes: ["FR-01"],
+};
+const FIXTURES: Record<string, unknown> = {
+  "POST /api/projects": {
+    name: "Matrix project",
+    domain: "Fintech",
+    audience: "Retail customers",
+    teamSize: 5,
+    sprintLengthDays: 14,
+  },
+  "PATCH /api/projects/[id]": { name: "Renamed project" },
+  "DELETE /api/projects/[id]": undefined,
+  "POST /api/projects/[id]/sources": { name: "Notes", text: "Customers can export their data." },
+  "DELETE /api/projects/[id]/sources/[sourceId]": undefined,
+  "POST /api/projects/[id]/discovery": undefined,
+  "POST /api/projects/[id]/discovery/confirm": undefined,
+  "POST /api/projects/[id]/requirements": {
+    text: "Customers can export reports",
+    type: "functional",
+  },
+  "PATCH /api/requirements/[id]": { text: "Customers can export reports as CSV" },
+  "PATCH /api/questions/[id]": { state: "skipped" },
+  "POST /api/projects/[id]/prd/generate": undefined,
+  "PATCH /api/prds/[id]": { section: "summary", value: "A new summary" },
+  "POST /api/prds/[id]/approve": undefined,
+  "POST /api/prds/[id]/new-version": undefined,
+  "POST /api/projects/[id]/backlog/generate": undefined,
+  "POST /api/projects/[id]/backlog/approve": undefined,
+  "POST /api/projects/[id]/stories": {
+    ...VALID_STORY,
+    epicId: "00000000-0000-4000-8000-0000000000e1",
+  },
+  "PATCH /api/stories/[id]": { section: "criteria", value: [] },
+  "POST /api/stories/[id]/approve": undefined,
+  "POST /api/stories/[id]/reject": { reason: "Not what we meant" },
+  "POST /api/stories/[id]/restore": undefined,
+  "POST /api/stories/[id]/new-version": undefined,
+  "POST /api/stories/[id]/regenerate": { note: "Make it shorter" },
+  "POST /api/projects/[id]/changes": {
+    kind: "add",
+    text: "Customers can pay by invoice",
+    type: "functional",
+    reason: "A customer asked for it",
+  },
+  "POST /api/changes/[id]/analyze": undefined,
+  "POST /api/changes/[id]/approve": undefined,
+  "POST /api/changes/[id]/discard": undefined,
+  "POST /api/changes/[id]/reviews": { ref: "PRD", note: "" },
+  "POST /api/projects/[id]/sprints/plan": { keepPinned: true },
+  "POST /api/projects/[id]/sprints/move": { storyCode: "US-001", sprintNumber: 1 },
+  "PUT /api/projects/[id]/sprints/settings": { velocity: 20, startDate: "2026-12-01" },
+  "PATCH /api/sprints/[id]": { goal: "Ship the filters" },
+  "POST /api/projects/[id]/exports/jira": {
+    format: "csv",
+    target: "cloud",
+    includeTasks: true,
+    subtaskType: "Sub-task",
+  },
+};
+
+const call = (route: Route, params: Record<string, string>) => {
+  const fixture = FIXTURES[key(route)];
+  return route.handler(
     new Request(`http://localhost${route.path}?stages=discovery`, {
       method: route.method,
       headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
-      body: route.method === "GET" ? undefined : "{}",
+      body: route.method === "GET" || fixture === undefined ? undefined : JSON.stringify(fixture),
     }),
     { params: Promise.resolve(params) },
   );
+};
 
 const get = async (route: Route | undefined, params: Record<string, string>) =>
   route ? (await call(route, params)).text() : "";
@@ -80,6 +155,8 @@ type Ids = Awaited<ReturnType<typeof seedWorkspaceA>>;
 const paramsFor = (path: string, ids: Ids): Record<string, string> | null => {
   if (!path.includes("[")) return null;
   const kind = path.split("/")[2] as keyof Ids;
+  if (!(kind in ids))
+    throw new Error(`${path}: no seeded id for "${kind}"; add one to seedWorkspaceA (Ids)`);
   return { id: ids[kind], ...(path.includes("[sourceId]") ? { sourceId: ids.sourceId } : {}) };
 };
 
@@ -126,7 +203,15 @@ afterEach(() => {
 });
 
 describe("route matrix (test plan §4–5, ADR-035)", () => {
-  it("another workspace gets 404 (or 400) on every route with A's ids, sees none of A's data, changes nothing", async () => {
+  it("every mutating route has a request fixture", async () => {
+    const routes = await allRoutes();
+    const missing = routes.filter((r) => r.method !== "GET" && !(key(r) in FIXTURES)).map(key);
+    expect(missing).toEqual([]);
+    const known = new Set(routes.map(key));
+    expect(Object.keys(FIXTURES).filter((k) => !known.has(k))).toEqual([]);
+  });
+
+  it("another workspace gets 404 (or 403) on every route with A's ids, sees none of A's data, changes nothing", async () => {
     const routes = await allRoutes();
     expect(routes.length).toBeGreaterThan(40);
     const ids = await seedWorkspaceA(routes);
@@ -144,7 +229,7 @@ describe("route matrix (test plan §4–5, ADR-035)", () => {
       const params = paramsFor(route.path, ids);
       const res = await call(route, params ?? {});
       const body = await res.text();
-      if (params && ![400, 404].includes(res.status))
+      if (params && ![403, 404].includes(res.status))
         leaks.push(`${route.method} ${route.path} → ${res.status}`);
       for (const id of Object.values(ids))
         if (body.includes(id)) leaks.push(`${route.method} ${route.path} shows ${id}`);

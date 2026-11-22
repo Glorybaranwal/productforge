@@ -8,6 +8,8 @@ const PORT = 3100;
 
 export default defineConfig({
   testDir: "tests/e2e",
+  // `next dev` compiles each route on first hit; the default 5 s is too tight for that.
+  expect: { timeout: 15_000 },
   fullyParallel: false,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
@@ -16,7 +18,8 @@ export default defineConfig({
   webServer: {
     command: `pnpm exec next dev --port ${PORT}`,
     url: `http://localhost:${PORT}/dashboard`,
-    reuseExistingServer: !process.env.CI,
+    // Never reuse a running server: it may hold real data, and the specs create projects.
+    reuseExistingServer: false,
     timeout: 120_000,
     env: { AUTH_DRIVER: "demo", DATA_DRIVER: "memory", AI_PROVIDER: "demo" },
   },
