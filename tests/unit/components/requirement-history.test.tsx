@@ -18,6 +18,7 @@ const version = (n: number, text: string, change: { code: string; reason: string
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("RequirementHistoryPanel", () => {
@@ -42,6 +43,21 @@ describe("RequirementHistoryPanel", () => {
       "href",
       "/dashboard/projects/p1/changes#CR-01",
     );
+  });
+
+  it("says so when the newer version has no change request", async () => {
+    const history = [
+      {
+        code: "FR-07",
+        versions: [version(1, "Reports as CSV", null), version(2, "Reports as PDF", null)],
+      },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ history })),
+    );
+    render(<RequirementHistoryPanel projectId="p1" code="FR-07" id="h" />);
+    expect(await screen.findByText("Edited without a change request.")).toBeTruthy();
   });
 
   it("explains a failed load and retries", async () => {

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { apiRequest } from "@/src/lib/api-client";
+import { orderPair } from "@/src/modules/requirements/compare";
 import type { RequirementHistory, RequirementVersion } from "@/src/modules/requirements/history";
 import { EVIDENCE_LABELS } from "@/src/modules/requirements/schema";
 import { diffWords, type DiffPart } from "@/src/modules/requirements/word-diff";
@@ -86,8 +87,9 @@ function Compare({
 }) {
   const [leftV, setLeftV] = useState(versions.at(-2)!.version);
   const [rightV, setRightV] = useState(versions.at(-1)!.version);
-  const left = versions.find((v) => v.version === leftV) ?? versions[0]!;
-  const right = versions.find((v) => v.version === rightV) ?? versions.at(-1)!;
+  const picked = versions.find((v) => v.version === leftV) ?? versions[0]!;
+  const other = versions.find((v) => v.version === rightV) ?? versions.at(-1)!;
+  const [left, right] = orderPair(picked, other);
   const parts = diffWords(left.text, right.text);
   const same = left.version === right.version;
 
@@ -200,6 +202,9 @@ function Column({
         </span>
       </div>
       <p className="text-sm leading-relaxed">{children}</p>
+      {showChange && !v.change && (
+        <p className="text-xs text-muted-foreground">Edited without a change request.</p>
+      )}
       {showChange && v.change && (
         <p className="text-xs text-muted-foreground">
           Changed in{" "}

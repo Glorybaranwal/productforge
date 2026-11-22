@@ -196,7 +196,7 @@ function RequirementItem({
             size="sm"
             variant="outline"
             aria-expanded={comparing}
-            aria-controls={`${id}-history`}
+            aria-controls={comparing ? `${id}-history` : undefined}
             onClick={() => setComparing((open) => !open)}
           >
             {comparing ? "Hide comparison" : "Compare versions"}
