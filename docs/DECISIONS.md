@@ -111,7 +111,10 @@ version like stage prompts.
 **Follow-up (2026-11-22, PF-029):** the judge sends `temperature: 0` except to models that reject it (ids starting
 `gpt-5` and the o-series, which accept only the default; `supportsTemperature` in `src/ai/openai-client.ts`). One judge
 call per fixture and list (requirements, question topics, conflicts, vague terms) carries all of that list's Tier 1
-misses; an invalid answer counts as no match, so the judge can only lower recall, never crash a run.
+misses; an invalid verdict counts as no match (an over-long reason is cut to 200 characters, and each verdict is
+validated alone), so the judge can only lower recall, never crash a run. On gpt-5 and o-series models (the default
+model gpt-5-mini included) the judge therefore runs at the model's default temperature, so verdicts may vary between
+runs; the report states the temperature actually used.
 
 ### ADR-011 — Demo mode first, real services behind the same interfaces
 **Status:** ACCEPTED · 2026-11-18 · decided by Claude acting as PM, at the user's request

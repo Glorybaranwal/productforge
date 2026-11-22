@@ -1,4 +1,6 @@
 /** ADR-010 summary gates and the markdown report for a discovery eval run. */
+import { supportsTemperature } from "@/src/ai/openai-client";
+
 import { JUDGE_PROMPT_VERSION } from "./judge";
 import type { FixtureScore, ItemKind } from "./score";
 
@@ -43,11 +45,19 @@ export function summarize(scores: FixtureScore[]): EvalSummary {
 /** Whether the Tier 2 judge ran, and if not, why (ADR-010: never in quick runs; the demo engine has no judge). */
 export type Tier2Status = "ran" | "quick" | "demo";
 
-const TIER2_TEXT: Record<Tier2Status, string> = {
-  ran: `Tier 2 judge (\`${JUDGE_PROMPT_VERSION}\`, temperature 0) ran on the phrases Tier 1 missed`,
-  quick: "Tier 2 skipped (quick run)",
-  demo: "Tier 2 skipped (demo engine)",
-};
+/** What temperature the judge actually ran at (gpt-5 and o-series models reject the setting). */
+export function judgeTemperatureText(model: string): string {
+  return supportsTemperature(model)
+    ? "temperature 0"
+    : "model default temperature — gpt-5 and o-series models don't accept a temperature";
+}
+
+const TIER2_TEXT = (status: Tier2Status, model: string): string =>
+  ({
+    ran: `Tier 2 judge (\`${JUDGE_PROMPT_VERSION}\`, ${judgeTemperatureText(model)}) ran on the phrases Tier 1 missed`,
+    quick: "Tier 2 skipped (quick run)",
+    demo: "Tier 2 skipped (demo engine)",
+  })[status];
 
 const KIND_LABEL: Record<ItemKind, string> = {
   requirement: "Requirement",
@@ -89,7 +99,7 @@ export function renderReport(
   return [
     `# Discovery eval — ${meta.date}${meta.quick ? " (quick set)" : ""}`,
     "",
-    `Provider: **${meta.provider}** · model: \`${meta.model}\` · scoring: ADR-010 Tier 1 (content-word match) + Tier 2 judge prompt \`${JUDGE_PROMPT_VERSION}\`. ${TIER2_TEXT[meta.tier2]}.`,
+    `Provider: **${meta.provider}** · model: \`${meta.model}\` · scoring: ADR-010 Tier 1 (content-word match) + Tier 2 judge prompt \`${JUDGE_PROMPT_VERSION}\`. ${TIER2_TEXT(meta.tier2, meta.model)}.`,
     "",
     "## Summary",
     "",

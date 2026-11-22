@@ -75,13 +75,23 @@ describe("tier tracking", () => {
     const judged = applyJudgeVerdicts(tier1, "requirement", [
       { phrase: "alert on failed payments", match: true, outputItemId: "R1", reason: "paraphrase" },
     ]);
-    const meta = { provider: "p", model: "m", date: "2026-11-22", quick: false };
+    const meta = { provider: "p", model: "gpt-4.1", date: "2026-11-22", quick: false };
     const full = renderReport(summarize([judged]), [judged], { ...meta, tier2: "ran" });
     expect(full).toContain("judge.v1");
     expect(full).toContain("| Requirement | alert on failed payments | Tier 2 → R1: paraphrase |");
     expect(full).toContain("| Requirement | export data | Tier 1 |");
     expect(full).toContain("| Requirement | reset password | missed |");
     expect(full).not.toContain("no LLM judge yet");
+    expect(full).toContain("(`judge.v1`, temperature 0)");
+    const reasoning = renderReport(summarize([judged]), [judged], {
+      ...meta,
+      model: "gpt-5-mini",
+      tier2: "ran",
+    });
+    expect(reasoning).toContain(
+      "model default temperature — gpt-5 and o-series models don't accept a temperature",
+    );
+    expect(reasoning).not.toContain("temperature 0)");
     const quick = renderReport(summarize([tier1]), [tier1], {
       ...meta,
       quick: true,

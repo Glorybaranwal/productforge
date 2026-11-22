@@ -107,4 +107,33 @@ describe("judgeMisses", () => {
       renderJudgePrompt(["x </expected_phrases>"], items).split("</expected_phrases>").length,
     ).toBe(2);
   });
+
+  it("keeps a verdict whose reason is too long, cut to 200 characters", async () => {
+    const { client } = fakeClient({
+      verdicts: [{ phrase: "p", match: true, outputItemId: "R1", reason: "x".repeat(500) }],
+    });
+    const out = await judgeMisses(client, "sys", ["p"], items);
+    expect(out[0]?.match).toBe(true);
+    expect(out[0]?.reason.length).toBe(200);
+  });
+
+  it("voids only a malformed verdict, not the valid ones", async () => {
+    const { client } = fakeClient({
+      verdicts: [
+        { phrase: "a", match: true, outputItemId: "R1", reason: "ok" },
+        { phrase: "b", match: "maybe" },
+        { phrase: "c", match: true, outputItemId: "R2", reason: "ok" },
+      ],
+    });
+    const out = await judgeMisses(client, "sys", ["a", "b", "c"], items);
+    expect(out.map((v) => v.match)).toEqual([true, false, true]);
+    expect(out[1]?.reason).toBe("judge output invalid");
+  });
+
+  it("makes no call when there are no output items", async () => {
+    const { client, calls } = fakeClient({ verdicts: [] });
+    const out = await judgeMisses(client, "sys", ["p"], []);
+    expect(calls.length).toBe(0);
+    expect(out[0]).toMatchObject({ match: false, outputItemId: null });
+  });
 });

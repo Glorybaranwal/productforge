@@ -15,6 +15,22 @@ export type JudgeVerdict = z.infer<typeof JudgeVerdict>;
 
 export const JudgeOutput = z.object({ verdicts: z.array(JudgeVerdict) });
 
+const MAX_REASON = 200;
+
+/** One verdict at a time, so a single malformed verdict voids only itself. A long reason is cut, not rejected. */
+function parseVerdicts(data: unknown): JudgeVerdict[] | null {
+  const list = (data as { verdicts?: unknown } | null)?.verdicts;
+  if (!Array.isArray(list)) return null;
+  return list.flatMap((raw) => {
+    const v =
+      raw && typeof raw === "object" && typeof (raw as { reason?: unknown }).reason === "string"
+        ? { ...raw, reason: (raw as { reason: string }).reason.slice(0, MAX_REASON) }
+        : raw;
+    const parsed = JudgeVerdict.safeParse(v);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
+
 export type JudgeItem = { id: string; text: string };
 
 const INVALID = "judge output invalid";
@@ -52,6 +68,7 @@ export async function judgeMisses(
   items: JudgeItem[],
 ): Promise<JudgeVerdict[]> {
   if (misses.length === 0) return [];
+  if (items.length === 0) return misses.map((m) => noMatch(m, "no output items to match"));
   let verdicts: JudgeVerdict[] | null = null;
   try {
     const result = await llm.generateStructured({
@@ -62,8 +79,7 @@ export async function judgeMisses(
       schema: JudgeOutput,
       temperature: 0,
     });
-    const parsed = JudgeOutput.safeParse(result.data);
-    if (parsed.success) verdicts = parsed.data.verdicts;
+    verdicts = parseVerdicts(result.data);
   } catch {
     verdicts = null;
   }
