@@ -827,3 +827,37 @@ Model output isn't streamed token by token; the steps are coarse (prepare, ask, 
 budget counts tokens, not dollars; a dollar cap can be added when pricing per model is fixed. Story versioning is
 manager-only while PRD draft versions are open to members (ADR-014 vs ADR-028): kept as decided, flagged for review.
 
+### ADR-036 — Authentication: JWT sessions for people, member-bound API keys for services, metered routes
+**Status:** ACCEPTED · 2026-11-22 · decided by Claude acting as PM, at the user's request ("for authentication, use
+JWT tokens for user sessions and API keys for service-to-service calls … mention rate limiting")
+**Decision:**
+- **People keep JWT sessions, unchanged (PF-013, ADR-021).** Supabase Auth issues a signed JWT on magic-link or
+  GitHub sign-in; `@supabase/ssr` stores it in httpOnly, secure cookies; `proxy.ts` refreshes it on each request
+  and gates `/dashboard` and `/api`; `getSession()` verifies the token with `getClaims()` instead of trusting the
+  cookie's contents, and RLS reads `auth.uid()` from the verified claims. This is written down here because the
+  model was only implicit before.
+- **Services authenticate with workspace API keys, and a key acts as the member who created it (PF-083).**
+  `pf_<env>_<prefix>_<random>`, shown once, stored only as a SHA-256 hash plus the non-secret prefix.
+- **Why bound to a member, rather than a service principal of its own:** every policy in the database is written
+  against `auth.uid()` (ADR-022, ADR-026–ADR-030). A standalone service identity has no `auth.users` row, so it
+  would need a second policy on every table and a second path through `withUser` — about twenty tables of new
+  policy to write, test and keep in step. Binding the key to its issuer sends the request down the existing
+  `actAs(user_id)` → `withUser` path, so tenant isolation, role checks, the frozen-approved rules and the audit
+  log all apply with no change, and a key can never reach a workspace or a role its owner does not have. The
+  effective role is the lower of the key's scope and the member's role **read at request time**, so demoting or
+  removing the member narrows or kills the key immediately.
+- **Scopes are `read` and `write` only, and no key can approve.** Approval moves a row to APPROVED, which
+  CLAUDE.md §7.7 reserves for a user action, so approve and confirm routes refuse keys whatever the owner's role.
+- **Three tiers of limiting (PF-084):** the per-run AI budget stays as it is (ADR-035); the expensive routes
+  (upload, export, generate, writes, reads) get fixed-window counters in Postgres keyed by principal and route
+  class; unauthenticated sign-in paths get a per-IP guard in middleware. Every 429 gains a `Retry-After` header,
+  which none sets today.
+**Why:** the pipeline will be driven by things that are not a browser — the Jira sync listed under "Later", CI
+smoke tests, the owner's own scripts — and a public URL with open magic-link signup in front of paid AI runs is
+worth metering before the link is shared.
+**Consequences:** an API key is exactly as powerful as its owner, so a leaked owner key is serious: hence
+mandatory expiry, a visible last-used time, one-click revoke, and no approval rights. Postgres counters cost one
+round trip, on the metered routes only. The per-IP guard and the live-view cap are per-instance and so
+approximate; they are speed bumps, and the Postgres counters are the real control. If a service ever genuinely
+needs rights no member has, this decision is the thing to revisit — that is the point where real service
+principals and their policies become worth the cost.

@@ -4,12 +4,28 @@
 
 ## Current
 
-- **Phase:** Week 8 — hardening and launch prep; every module's data is in Postgres (Week 7 done)
-- **In progress:** PF-010 (local Supabase via the CLI), PF-050 (Jira test import)
-- **In progress:** PF-060 (browser journeys: J1, J2 pass; J3–J8 left); pull request `m0-platform` → `main`
-- **Next up:** merge the `m0-platform` pull request once CI is green (CI runs the jsdom component tests that never ran in Claude's VM); then PF-064 (production deploy, now unblocked by PF-075); PF-078 (rotate secrets) before real data
+- **Phase:** Week 8/9 — the pipeline is built and every module's data is in Postgres; the remaining work is making
+  production real and safe to share
+- **In progress:** PF-064 (production deploy: code done on branch `launch`, awaiting its final review, then the
+  owner's steps in `docs/DEPLOY.md`); PF-010 (local Supabase via the CLI), PF-050 (Jira test import),
+  PF-060 (browser journeys: J1, J2 pass; J3-J8 left)
+- **Next up, in priority order:**
+  1. **PF-064** - merge `launch` into `main`, then the owner's steps in `docs/DEPLOY.md`, then the smoke test.
+     Production answers 500 on `/dashboard` until the Supabase variables are set, so nothing else can be checked
+     against a live site.
+  2. **PF-017 (auth emails)** - raised to a launch blocker: Supabase's built-in email reaches only the project team
+     at a few an hour, so nobody else can sign up, and a magic link opened on another device fails until the
+     template uses `token_hash` (the callback already accepts it).
+  3. **PF-083 (API keys)** and **PF-084 (HTTP rate limits + `Retry-After`)** - ADR-036, Week 9. Do these before the
+     URL is handed out: signup is open and every AI run costs money.
+  4. **PF-078** (rotate the secrets pasted in chat) and **PF-067** (verify the database certificate).
+  5. **PF-060 J3-J8**, then **PF-045** + **PF-063** (eval metrics and the full report).
+  6. **PF-065** (README + demo), **PF-080**/**PF-081** (deferred minors), **PF-066** (major upgrades),
+     **PF-054**/**PF-055** (stretch).
 - **Live preview:** https://claude.ai/artifact/UAKA9Kf7A8vRiXNyGbhkWo
-- **Blockers:** tests can't run inside Claude's link to the Mac, so `pnpm test` runs on the developer's machine and in CI (GitHub Actions); PF-050's done-when needs a Jira admin to import the CSV into a company-managed Jira test project
+- **Blockers:** tests can't run inside Claude's link to the Mac, so `pnpm lint`, `pnpm typecheck` and `pnpm test`
+  run on the developer's machine and in CI; Claude also can't push (the VM's proxy refuses GitHub), so the user
+  pushes and merges; PF-050's done-when needs a Jira admin to import the CSV into a company-managed Jira project
 - **Open decisions:** none
 - **Working agreement:** one git branch per module (the tracker's Module column, e.g. `m2-prd`), reused for every
   task in that module until merged; Claude commits, the user pushes and merges. Keep replies and tool output lean.
@@ -18,13 +34,16 @@
 
 | Milestone | Target | Status |
 | --- | --- | --- |
-| Week 0 — Docs, schemas, fixtures | Day 3 | In progress |
-| Week 1 — SaaS foundation deployed | End of week 1 | Not started |
-| Week 2 — Discovery + clarification working | End of week 2 | Not started |
-| Week 3 — PRD + stories generated and approvable | End of week 3 | Not started |
-| Week 4 — Criteria, tasks, traceability (**MVP complete**) | End of week 4 | Not started |
-| Week 5 — Export + sprint planning (stretch) | End of week 5 | Not started |
-| Week 6 — Quality, deploy, demo | End of week 6 | Not started |
+| Week 0 - Docs, schemas, fixtures | Day 3 | Done |
+| Week 1 - SaaS foundation deployed | End of week 1 | In progress (built; production not live until PF-064) |
+| Week 2 - Discovery + clarification working | End of week 2 | Done |
+| Week 3 - PRD + stories generated and approvable | End of week 3 | Done |
+| Week 4 - Criteria, tasks, traceability (**MVP complete**) | End of week 4 | Done |
+| Week 5 - Export + sprint planning (stretch) | End of week 5 | Done (PF-050's Jira import still needs an admin) |
+| Week 6 - Quality, deploy, demo | End of week 6 | In progress (PF-060 J3-J8, PF-063, PF-064, PF-065) |
+| Week 7 - Every module's data in Postgres | - | Done |
+| Week 8 - Hardening from the test plan | - | In progress (PF-078, PF-080, PF-081 left) |
+| Week 9 - Access control and abuse limits | - | Not started (PF-083, PF-084) |
 
 ## Session log
 
@@ -32,6 +51,7 @@ Newest first. One row per session.
 
 | Date | Tasks touched | Outcome | Notes for next session |
 | --- | --- | --- | --- |
+| 2026-11-22 | PF-064, PF-083, PF-085 | Whole-branch review of `launch`: 0 Critical, 4 Important, all fixed. The seed could never have run (top-level `await` in a CommonJS package forces ESM; Next 16 has no `exports`, so the `next/headers` reached through `workspaces/service` could not resolve) — body moved into `main()` and `getSession` imported lazily, which drops `next/headers` from the script's graph. Runbook rollback step pointed at a deployment that 500s; smoke test was silent about PF-017. Planned Week 9 from the user's auth brief: ADR-036 (JWT sessions unchanged, member-bound API keys, three limiting tiers), PF-083 + PF-084. PF-017 raised to a launch blocker; milestone table corrected; PF-085 added for the seed's test gaps | The developer runs `pnpm install --frozen-lockfile` and one `pnpm db:seed` (neither can run in Claude's VM), then pushes `launch` and `m0-week9-plan`. Then the owner's steps in `docs/DEPLOY.md`, then PF-017, then PF-083 |
 | 2026-11-22 | PF-075, PF-060 | PF-075 closed: Postgres-only mode checked on Mumbai (all pages + endpoints 200, write path + live progress OK, data file untouched). Playwright J1/J2 pass on the Mac. Branch `m0-platform` ready for its pull request to `main` | Merge the PR once CI is green; then PF-064 (production deploy) is unblocked |
 | 2026-11-22 | PF-082 | Eval token cap (ADR-010 follow-up, user's call): `EVAL_TOKEN_CAP` (default 1M tokens) shared across all eval files via a global setup; early stop writes a partial report and fails; demo engine uncapped. 11 unit tests | Run a real `pnpm eval` once and tune the cap from the report's token line |
 | 2026-11-22 | PF-061, PF-035, PF-056, PF-029 | PF-061 review fixes (route matrix with valid bodies, RLS refusals asserted, write-side RLS and upload route tests); PF-035 PRD page split into smaller components; PF-056 requirement history view (compare two versions, linked change request; final-review fixes: old-to-new order, valid `aria-controls`, "Edited without a change request"); PF-029 eval Tier 2 judge (verdicts matched by cleaned phrase). Shim-run suites, typecheck and lint pass; jsdom and Playwright tests not run | Run the three checks on the Mac; install Playwright and run `pnpm test:e2e`; answer the ADR-010 token-cap question; PF-081 holds the deferred minors |
