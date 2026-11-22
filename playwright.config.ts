@@ -16,7 +16,8 @@ export default defineConfig({
   use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `pnpm exec next dev --port ${PORT}`,
+    // Node runs Next directly, so it works whether pnpm is installed or only reached through corepack.
+    command: `node node_modules/next/dist/bin/next dev --port ${PORT}`,
     url: `http://localhost:${PORT}/dashboard`,
     // Never reuse a running server: it may hold real data, and the specs create projects.
     reuseExistingServer: false,
