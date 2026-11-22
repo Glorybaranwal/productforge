@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Files waiting for the user to delete them
 /_to_delete/
+
+# Claude working files (subagent plans, ledgers, review packages)
+/.superpowers/
