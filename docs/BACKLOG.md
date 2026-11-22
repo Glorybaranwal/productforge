@@ -366,13 +366,16 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
     Checked on Mumbai in Chrome: settings + plan + move out/in (stories depending on a draft held back, as
     designed); CR-01 proposed → approved (FR-08 v2, approver stored as user id) → second approve 409 → review
     mark saved; Changes page renders from Postgres.
-- [~] **PF-075 — Postgres-only mode** · Depends on: PF-074
+- [x] **PF-075 — Postgres-only mode** · Depends on: PF-074
   - With `DATA_DRIVER=postgres` nothing touches the file store; demo mode keeps it.
   - Validate the `agent_run_id` foreign keys added `NOT VALID` in PF-071 (clear pre-PF-071 test data first).
   - **Done when:** the app runs with a read-only file system (unblocks PF-064).
   - *2026-11-20:* demo store refused when `DATA_DRIVER=postgres` (ADR-031); all Postgres-mode integration tests
-    pass with the guard on; migration 0009 clears pre-PF-071 run links and validates the run foreign keys. Left:
-    `db:migrate` on Mumbai and a click through every page.
+    pass with the guard on; migration 0009 clears pre-PF-071 run links and validates the run foreign keys.
+  - *2026-11-22:* checked on Mumbai with `DATA_DRIVER=postgres` after `db:migrate` + `db:check` passed: all 10 pages
+    and 12 read endpoints answer 200 with no errors; a new project → source → discovery run (demo engine) works, with
+    the live progress stream showing all 6 steps; `.data/productforge.json` unchanged (same mtime and size), so nothing
+    touched the file store. Requirement history (PF-056) shows FR-08 v1 → v2 with CR-01 on real data.
 
 ## Week 8 — Hardening (from the test plan, 2026-11-20)
 
