@@ -201,7 +201,7 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - Business rules: every story links ≥ 1 approved requirement; no dependency cycles.
   - **Done when:** eval coverage (requirements with ≥ 1 story) ≥ 90 % on fixtures.
   - _2026-11-19 (Module 4): `story` stage (`story.v1.md`) + demo engine. Fills coverage gaps only; rules, assumptions and answers that name no user attach to the story they constrain; rejection reasons and reviewer notes feed regeneration. `pnpm eval` backlog report: coverage 100 % (24/24) on the quick set, 5/5 valid. See ADR-014._
-- [ ] **PF-035 — Split `components/prd/prd-workspace.tsx`** · Depends on: PF-031
+- [x] **PF-035 — Split `components/prd/prd-workspace.tsx`** · Depends on: PF-031 · Done 2026-11-22: toolbar, Gate 2 and traceability panels moved to their own files.
   - 370 lines (CLAUDE.md asks for ~300): move the toolbar, Gate 2 panel and traceability panel into their own files.
   - **Done when:** every PRD component file is under 300 lines and the PRD browser test still passes.
 
@@ -385,9 +385,6 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - Rotate the Supabase secret key, DB password and OpenAI key pasted in chat earlier (SEC-21); update
     `.env.local` and Vercel. Done by the user in the dashboards.
   - **Done when:** old keys are revoked and the app still signs in and runs discovery.
-- [ ] **PF-079 — Split the PRD workspace component** · Depends on: —
-  - `components/prd/prd-workspace.tsx` is 374 lines; move the toolbar and approve panel to their own files.
-  - **Done when:** no `max-lines` warning.
 - [ ] **PF-080 — Minor findings from the UI and tests review (2026-11-22)** · Depends on: —
   - `app/dashboard/layout.tsx` disables `no-restricted-imports` to read `dataBackend()` from `src/db/scope`:
     expose it from `src/lib` (next to `authDriver`) and drop the suppression.
