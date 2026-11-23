@@ -465,8 +465,11 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - Browsers keep their Supabase JWT session (ADR-021); anything that is not a browser authenticates with a
     workspace API key, and **every key acts as the member who created it**, so no policy changes (ADR-036).
   - `api_keys` table + RLS + migration 0010: `workspace_id`, `user_id` (issuer), `name`, `prefix`, `secret_hash`,
-    `scopes`, `created_at`, `last_used_at`, `expires_at`, `revoked_at`. The plaintext key is shown once and never
+    `scope`, `created_at`, `last_used_at`, `expires_at`, `revoked_at`. The plaintext key is shown once and never
     stored; only a SHA-256 hash and the non-secret `prefix` (for display and log correlation) are kept.
+  - *2026-11-23:* data layer done (`src/db/schema/api-keys.ts`, migration 0010, `src/modules/api-keys/`,
+    PGlite policy tests). One `scope` per key, not a list: write subsumes read, and no scope approves.
+    `expires_at` is mandatory and the table caps it at 366 days. Left: the verify path and the settings screen.
   - `src/modules/api-keys/{schema,service,repository,store-repository,pg-repository}.ts` in the usual shape.
   - `src/lib/auth-key.ts`: `Authorization: Bearer pf_…` → prefix lookup → constant-time hash compare → expiry and
     revocation check → membership re-read → context via the existing `actAs(user_id)` path, with the key's
