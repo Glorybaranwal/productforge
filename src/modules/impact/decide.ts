@@ -1,6 +1,6 @@
 /** Deciding on a change request and reviewing what it flagged (PF-053). */
 import { unitOfWork } from "@/src/db/scope";
-import { MANAGER_ROLES, requireRole } from "@/src/lib/auth";
+import { MANAGER_ROLES, refuseApiKeyApproval, requireRole } from "@/src/lib/auth";
 import { AppError, parseOrThrow } from "@/src/lib/errors";
 import { newId, nowIso } from "@/src/lib/ids";
 import { requirementRepository } from "@/src/modules/requirements/repository";
@@ -25,6 +25,7 @@ export async function approveChange(
   ctx: WorkspaceContext,
   changeId: string,
 ): Promise<AnalysisResult> {
+  refuseApiKeyApproval(ctx);
   requireRole(ctx.role, MANAGER_ROLES, "approve requirement changes");
   const change = await find(ctx, changeId);
   requireProposed(change);

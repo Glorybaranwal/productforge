@@ -67,3 +67,19 @@ export function isCrossSiteWrite(request: {
   if (request.origin) return request.origin !== request.selfOrigin;
   return request.secFetchSite === "cross-site";
 }
+
+/**
+ * Which kind of request this is, decided once in `proxy.ts` and passed to the app in a header
+ * (PF-083, ADR-036). `currentContext` honours an API key only on an `api-*` surface, so a key can
+ * never open a `/dashboard` page. `api-write` is any method that can change state, which is how a
+ * `read` key is held to reads even on routes with no role check (members may add sources, edit
+ * drafts and so on). Anything that isn't `/api` is a `page`.
+ */
+export type Surface = "page" | "api-read" | "api-write";
+export const SURFACE_HEADER = "x-pf-surface";
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+export function requestSurface(pathname: string, method: string): Surface {
+  if (!under(pathname, "/api")) return "page";
+  return SAFE_METHODS.has(method.toUpperCase()) ? "api-read" : "api-write";
+}
