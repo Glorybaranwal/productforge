@@ -151,11 +151,14 @@ const NO_HASH = "0".repeat(64);
  * Every failure is the same UNAUTHORIZED with the same message; the reason goes to the log only, with
  * the key's prefix and never anything secret. Steps, in order:
  *   1. the header parses as a key; 2. a key with that prefix exists; 3. the secret matches its hash
- *   (constant time); 4. it isn't revoked or expired; 5. its issuer is still a member of its workspace
- *   (read as that member, so removing them kills the key); 6. then, and only then, a `read` key on a
- *   mutating request is refused (403: the caller has proven the whole key by now, so this reveals
- *   nothing); 7. the context is built with the lower of the scope's and the member's role and
- *   `viaApiKey` set; 8. `last_used_at` is touched, and a failure there is logged and ignored.
+ *   (constant time); 4. its issuer's membership is read (as that member, so RLS applies), *before*
+ *   the next checks, so that revoked, expired and removed cost the same and latency can't tell a
+ *   holder of the secret which it was; 5. it isn't revoked or expired; 6. the issuer is still a
+ *   member (removing them kills the key); 7. `last_used_at` is touched, a failure there is logged
+ *   and ignored, and it happens before step 8 so a refused use still leaves a trace; 8. a `read`
+ *   key on a mutating request is refused (403: the caller has proven the whole key by now, so this
+ *   reveals nothing); 9. the context is built with the lower of the scope's and the member's role
+ *   and `viaApiKey` set.
  *
  * Never calls `ensureWorkspace`: that would create a workspace for a user who has none.
  */
@@ -180,8 +183,6 @@ export async function contextForApiKey(
   }
   if (!secretMatches(parsed.secret, row.secretHash)) throw reject("secret mismatch");
   const now = new Date();
-  if (row.revokedAt) throw reject("revoked");
-  if (new Date(row.expiresAt).getTime() <= now.getTime()) throw reject("expired");
 
   // The key acts as its issuer. Name the session after the prefix, the log-correlation handle.
   const session: Session = { userId: row.userId, name: `API key ${row.prefix}`, email: "" };
@@ -192,10 +193,9 @@ export async function contextForApiKey(
     const workspace = await workspaceRepository.findById(scope, row.workspaceId);
     return workspace ? { member, workspace } : null;
   });
+  if (row.revokedAt) throw reject("revoked");
+  if (new Date(row.expiresAt).getTime() <= now.getTime()) throw reject("expired");
   if (!found) throw reject("not a member");
-
-  if (opts.mutating && row.scope === "read")
-    throw new AppError("FORBIDDEN", "This API key is read-only");
 
   try {
     await apiKeyRepository.touchLastUsed(row.id, now.toISOString());
@@ -204,6 +204,11 @@ export async function contextForApiKey(
       prefix: row.prefix,
       error: err instanceof Error ? err.message : String(err),
     });
+  }
+
+  if (opts.mutating && row.scope === "read") {
+    logger.info("API key refused", { reason: "read-only key on a write", prefix: row.prefix });
+    throw new AppError("FORBIDDEN", "This API key is read-only");
   }
 
   return {

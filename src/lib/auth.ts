@@ -1,5 +1,9 @@
 import { AppError } from "./errors";
 
+/**
+ * Strongest first. The order is load-bearing: `effectiveRole` takes the later of two roles as the
+ * lower one, so reordering this silently changes what an API key may do. Pinned by a test.
+ */
 export const ROLES = ["owner", "admin", "pm", "developer", "qa"] as const;
 export type Role = (typeof ROLES)[number];
 
