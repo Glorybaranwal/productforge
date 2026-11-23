@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+/** Lifetime when the caller names none, and the longest the table allows (`api_keys_expiry_window`). */
+export const API_KEY_DEFAULT_EXPIRY_DAYS = 90;
+export const API_KEY_MAX_EXPIRY_DAYS = 366;
+
 /** `read` can only read; `write` can also write. No scope can approve (ADR-036, CLAUDE.md §7.7). */
 export const API_KEY_SCOPES = ["read", "write"] as const;
 export const ApiKeyScope = z.enum(API_KEY_SCOPES);

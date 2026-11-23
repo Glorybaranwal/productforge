@@ -14,12 +14,17 @@ import { workspaceRepository } from "@/src/modules/workspaces/repository";
 import type { WorkspaceContext } from "@/src/modules/workspaces/schema";
 
 import { apiKeyRepository } from "./repository";
-import { ApiKeyCreate, type ApiKey, type NewApiKey } from "./schema";
+import {
+  API_KEY_DEFAULT_EXPIRY_DAYS,
+  API_KEY_MAX_EXPIRY_DAYS,
+  ApiKeyCreate,
+  type ApiKey,
+  type NewApiKey,
+} from "./schema";
 
-/** Default lifetime when the caller names none. */
-export const DEFAULT_EXPIRY_DAYS = 90;
-/** The table's `api_keys_expiry_window` check allows at most this many days after `created_at`. */
-export const MAX_EXPIRY_DAYS = 366;
+/** The lifetimes live in the schema so the settings screen can show the same numbers. */
+export const DEFAULT_EXPIRY_DAYS = API_KEY_DEFAULT_EXPIRY_DAYS;
+export const MAX_EXPIRY_DAYS = API_KEY_MAX_EXPIRY_DAYS;
 const DAY_MS = 864e5;
 
 /** Live keys in production, test keys everywhere else; the env is only a label in the key. */
