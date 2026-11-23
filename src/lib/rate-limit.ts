@@ -57,6 +57,15 @@ export const LIMITS = Object.fromEntries(
   BUCKETS.map((bucket) => [bucket, limitFor(bucket)]),
 ) as Record<Bucket, number>;
 
+/**
+ * Who a request is metered as: `key:<id>` for an API key and `user:<id>` for a cookie session. A key
+ * is deliberately NOT its owner: a runaway script must not use up the human's allowance (ADR-037).
+ * The same string keys the live-view cap, so a key's streams don't take the owner's slots either.
+ */
+export function principalOf(ctx: { session: { userId: string }; apiKeyId?: string }): string {
+  return ctx.apiKeyId ? `key:${ctx.apiKeyId}` : `user:${ctx.session.userId}`;
+}
+
 /** The start of the window containing `now`: epoch time floored to a multiple of the window. */
 export function windowStart(now: Date, seconds = WINDOW_SECONDS): Date {
   const ms = seconds * 1000;

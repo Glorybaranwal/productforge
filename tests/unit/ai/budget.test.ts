@@ -87,5 +87,7 @@ describe("AI budget through the API", () => {
     expect(res.status).toBe(429);
     const body = (await res.json()) as { error: { code: string; message: string } };
     expect(body.error.code).toBe("RATE_LIMITED");
+    // PF-084: every 429 carries Retry-After, the per-minute run budget's included.
+    expect(res.headers.get("Retry-After")).toBe("60");
   });
 });

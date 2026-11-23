@@ -6,7 +6,8 @@
 import { headers } from "next/headers";
 
 import { isApiKeyHeader } from "./api-key";
-import { SURFACE_HEADER } from "./auth-gate";
+import { BUCKET_HEADER, SURFACE_HEADER } from "./auth-gate";
+import type { Bucket } from "./rate-limit";
 
 /**
  * The `Authorization` header and whether the request can change state, or null when there is no key
@@ -15,9 +16,19 @@ import { SURFACE_HEADER } from "./auth-gate";
  * ignored and the normal sign-in applies.
  */
 export async function apiKeyFromRequest(): Promise<{ header: string; mutating: boolean } | null> {
-  let requestHeaders: Headers;
+  const requestHeaders = await readHeaders();
+  if (!requestHeaders) return null;
+  const header = requestHeaders.get("authorization");
+  if (!header || !isApiKeyHeader(header)) return null;
+  const surface = requestHeaders.get(SURFACE_HEADER);
+  if (surface !== "api-read" && surface !== "api-write") return null;
+  return { header, mutating: surface === "api-write" };
+}
+
+/** The request's headers, or null outside a request (a script, a unit test). */
+async function readHeaders(): Promise<Headers | null> {
   try {
-    requestHeaders = await headers();
+    return await headers();
   } catch (err) {
     // Next signals "render dynamically" and similar through errors that carry a `digest`: pass those on.
     if (
@@ -26,11 +37,23 @@ export async function apiKeyFromRequest(): Promise<{ header: string; mutating: b
       typeof (err as { digest?: unknown }).digest === "string"
     )
       throw err;
-    return null; // Outside a request (a script, a unit test): there is no key to read.
+    return null; // Outside a request (a script, a unit test): there is nothing to read.
   }
-  const header = requestHeaders.get("authorization");
-  if (!header || !isApiKeyHeader(header)) return null;
-  const surface = requestHeaders.get(SURFACE_HEADER);
-  if (surface !== "api-read" && surface !== "api-write") return null;
-  return { header, mutating: surface === "api-write" };
+}
+
+const BUCKETS: Record<Bucket, true> = {
+  upload: true,
+  export: true,
+  generate: true,
+  write: true,
+  read: true,
+};
+
+/**
+ * The rate-limit class `proxy.ts` stamped on this request, or null when it is not metered (a page, a
+ * script, or no header). Trustworthy for the same reason the surface is: the proxy overwrites or removes it.
+ */
+export async function rateBucketFromRequest(): Promise<Bucket | null> {
+  const value = (await readHeaders())?.get(BUCKET_HEADER);
+  return value && Object.hasOwn(BUCKETS, value) ? (value as Bucket) : null;
 }

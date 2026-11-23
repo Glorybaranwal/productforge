@@ -223,6 +223,7 @@ export async function contextForApiKey(
     workspace: found.workspace,
     role: effectiveRole(row.scope, found.member.role),
     viaApiKey: true,
+    apiKeyId: row.id,
   };
 
   try {

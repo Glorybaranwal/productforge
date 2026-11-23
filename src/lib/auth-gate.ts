@@ -1,3 +1,5 @@
+import type { Bucket } from "./rate-limit";
+
 /**
  * Who may open which path (PF-013, ADR-021). Pure, so the rules are unit-tested. `proxy.ts` applies
  * them on every request; `getSession()` verifies the user again wherever data is read.
@@ -88,4 +90,47 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 export function requestSurface(pathname: string, method: string): Surface {
   if (!under(pathname, "/api")) return "page";
   return SAFE_METHODS.has(method.toUpperCase()) ? "api-read" : "api-write";
+}
+
+/** Set by `proxy.ts` on every request, overwritten or removed so a client-sent value never survives. */
+export const BUCKET_HEADER = "x-pf-bucket";
+
+const SEG = "[^/]+";
+const route = (pattern: string) => new RegExp(`^/api/${pattern}$`);
+const UPLOAD = route(`projects/${SEG}/sources`);
+const EXPORTS = [
+  route(`prds/${SEG}/markdown`),
+  route(`projects/${SEG}/backlog/markdown`),
+  route(`projects/${SEG}/traceability/csv`),
+  route(`projects/${SEG}/exports/jira`),
+];
+const GENERATE = [
+  route(`projects/${SEG}/discovery`),
+  route(`projects/${SEG}/prd/generate`),
+  route(`projects/${SEG}/backlog/generate`),
+  route(`changes/${SEG}/analyze`),
+  route(`projects/${SEG}/changes`),
+  route(`stories/${SEG}/regenerate`),
+];
+
+/**
+ * Which rate limit a request counts against (PF-084, ADR-037), or null when it is not metered. Lives
+ * beside `requestSurface` so the two rules stay together; `proxy.ts` stamps it in a header, and
+ * `currentContext` reads it. Only `/api` is ever metered: a page render is a cookie-authenticated
+ * human in a browser, and ADR-023 fought for its 86-226 ms (Global Constraint 2).
+ *
+ * `generate` is every route that reaches the stage runner (and so `checkRunBudget`): found by tracing
+ * callers of `runStage`, not from memory. That includes `POST /projects/:id/changes`, which analyses
+ * the change it creates. `sprints/plan` is NOT one: the planner is deterministic and calls no model.
+ * A new generating route must be added here, or it silently gets `write`'s 60/min instead of 12.
+ */
+export function rateBucket(pathname: string, method: string): Bucket | null {
+  if (!under(pathname, "/api")) return null;
+  // `//` and a trailing slash must not slip a route out of its class.
+  const path = pathname.replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1");
+  const verb = method.toUpperCase();
+  if (EXPORTS.some((r) => r.test(path))) return "export";
+  if (verb === "POST" && UPLOAD.test(path)) return "upload";
+  if (verb === "POST" && GENERATE.some((r) => r.test(path))) return "generate";
+  return SAFE_METHODS.has(verb) ? "read" : "write";
 }

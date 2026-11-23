@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   gate,
+  BUCKET_HEADER,
   isCrossSiteWrite,
+  rateBucket,
   requestSurface,
   safeNext,
   SURFACE_HEADER,
@@ -123,5 +125,71 @@ describe("requestSurface (PF-083)", () => {
 
   it("names the header the app reads", () => {
     expect(SURFACE_HEADER).toBe("x-pf-surface");
+  });
+});
+
+describe("rateBucket (PF-084)", () => {
+  it("never meters anything that is not under /api, whatever the method", () => {
+    for (const path of [
+      "/",
+      "/login",
+      "/auth/callback",
+      "/dashboard",
+      "/dashboard/projects/p1",
+      "/apiary",
+      "/dashboard/api/x",
+    ])
+      for (const method of ["GET", "POST", "DELETE"])
+        expect(rateBucket(path, method), `${method} ${path}`).toBeNull();
+  });
+
+  it("puts a source upload in `upload`, but listing sources is a read", () => {
+    expect(rateBucket("/api/projects/p1/sources", "POST")).toBe("upload");
+    expect(rateBucket("/api/projects/p1/sources", "GET")).toBe("read");
+    expect(rateBucket("/api/projects/p1/sources/s1", "DELETE")).toBe("write");
+  });
+
+  it("puts the four export routes in `export`", () => {
+    expect(rateBucket("/api/prds/p1/markdown", "GET")).toBe("export");
+    expect(rateBucket("/api/projects/p1/backlog/markdown", "GET")).toBe("export");
+    expect(rateBucket("/api/projects/p1/traceability/csv", "GET")).toBe("export");
+    expect(rateBucket("/api/projects/p1/exports/jira", "POST")).toBe("export");
+    // The export history list is not an export.
+    expect(rateBucket("/api/projects/p1/exports", "GET")).toBe("read");
+  });
+
+  it("puts every route that reaches the stage runner in `generate`", () => {
+    for (const path of [
+      "/api/projects/p1/discovery",
+      "/api/projects/p1/prd/generate",
+      "/api/projects/p1/backlog/generate",
+      "/api/changes/c1/analyze",
+      "/api/projects/p1/changes",
+      "/api/stories/s1/regenerate",
+    ])
+      expect(rateBucket(path, "POST"), path).toBe("generate");
+  });
+
+  it("does not class the deterministic sprint planner or reading a generation's state as `generate`", () => {
+    expect(rateBucket("/api/projects/p1/sprints/plan", "POST")).toBe("write");
+    expect(rateBucket("/api/projects/p1/discovery", "GET")).toBe("read");
+    expect(rateBucket("/api/projects/p1/changes", "GET")).toBe("read");
+  });
+
+  it("makes every other non-safe method a `write` and every safe one a `read`", () => {
+    for (const method of ["POST", "PUT", "PATCH", "DELETE"])
+      expect(rateBucket("/api/projects/p1", method)).toBe("write");
+    for (const method of ["GET", "HEAD", "OPTIONS"])
+      expect(rateBucket("/api/projects/p1", method)).toBe("read");
+    expect(rateBucket("/api/projects", "post")).toBe("write");
+  });
+
+  it("is not dodged by a doubled or trailing slash", () => {
+    expect(rateBucket("/api/projects/p1//sources", "POST")).toBe("upload");
+    expect(rateBucket("/api/projects/p1/sources/", "POST")).toBe("upload");
+  });
+
+  it("names the header the app reads", () => {
+    expect(BUCKET_HEADER).toBe("x-pf-bucket");
   });
 });

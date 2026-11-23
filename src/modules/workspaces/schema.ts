@@ -32,4 +32,6 @@ export type WorkspaceContext = {
   role: Role;
   tx?: Tx;
   viaApiKey?: true;
+  /** The key that authenticated this request (PF-084), set beside `viaApiKey` by `contextForApiKey` only. It is what rate limits and the live-view cap are keyed by, so a key meters as itself and not as its owner. */
+  apiKeyId?: string;
 };

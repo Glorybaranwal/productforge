@@ -1,12 +1,18 @@
 import { watchRuns } from "@/src/ai/orchestrator/watch-runs";
 import { AppError } from "@/src/lib/errors";
 import { withErrors } from "@/src/lib/http";
+import { principalOf } from "@/src/lib/rate-limit";
 import { parseStages, runWatcher } from "@/src/modules/agent-runs/service";
 import { currentContext } from "@/src/modules/workspaces/service";
 
 type Context = { params: Promise<{ id: string }> };
 
-/** Open streams per user on this server (ADR-035); a page needs one at a time. */
+/**
+ * Open streams per principal on this server (ADR-035); a page needs one at a time. A *concurrency*
+ * cap, so it stays in memory and per-instance, and is deliberately not on the rate-limit counters:
+ * a fixed-window counter counts opens per minute, which is a different thing (ADR-037). It is keyed
+ * by the same principal string as the counters, so an API key's streams don't use its owner's slots.
+ */
 export const MAX_STREAMS_PER_USER = 5;
 const open = new Map<string, number>();
 
@@ -26,7 +32,7 @@ export const GET = withErrors(async (request: Request, { params }: Context) => {
     projectId,
     parseStages(new URL(request.url).searchParams.get("stages")),
   );
-  const user = ctx.session.userId;
+  const user = principalOf(ctx);
   if ((open.get(user) ?? 0) >= MAX_STREAMS_PER_USER)
     throw new AppError("RATE_LIMITED", "Too many live views open. Close a tab and try again.", {
       // The cap clears the moment a tab closes, so a short wait is right.

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLLMClient } from "@/src/ai/llm-client";
 import { transact } from "@/src/db/store";
 import { DEMO_USER, type Role } from "@/src/lib/auth";
-import { requestSurface } from "@/src/lib/auth-gate";
+import { rateBucket, requestSurface } from "@/src/lib/auth-gate";
 import { actAs } from "@/src/lib/test-session";
 import { resetDb } from "@/tests/helpers/context";
 import { projectThroughGate2 } from "@/tests/helpers/backlog";
@@ -325,5 +325,35 @@ describe("route matrix (test plan §4–5, ADR-035)", () => {
     expect(wrong).toEqual([]);
     expect(covered).toBe(writes.length);
     expect(await snapshot(routes, ids)).toEqual(before);
+  });
+
+  it("every route has a rate-limit class, and the expensive ones are pinned (PF-084)", async () => {
+    // Pure classification: no counter is touched, so this stays independent of the sweeps above.
+    const routes = await allRoutes();
+    const classes = new Map<string, string[]>();
+    for (const route of routes) {
+      const bucket = rateBucket(route.path.replace(/\[(\w+)\]/g, "x"), route.method);
+      expect(bucket, key(route)).not.toBeNull();
+      classes.set(bucket!, [...(classes.get(bucket!) ?? []), key(route)]);
+    }
+    // A new generating route must be added to this list on purpose: left out, it would be metered as
+    // `write` (60/min) instead of `generate` (12/min) without anyone noticing.
+    expect(classes.get("generate")?.sort()).toEqual([
+      "POST /api/changes/[id]/analyze",
+      "POST /api/projects/[id]/backlog/generate",
+      "POST /api/projects/[id]/changes",
+      "POST /api/projects/[id]/discovery",
+      "POST /api/projects/[id]/prd/generate",
+      "POST /api/stories/[id]/regenerate",
+    ]);
+    expect(classes.get("upload")).toEqual(["POST /api/projects/[id]/sources"]);
+    expect(classes.get("export")?.sort()).toEqual([
+      "GET /api/prds/[id]/markdown",
+      "GET /api/projects/[id]/backlog/markdown",
+      "GET /api/projects/[id]/traceability/csv",
+      "POST /api/projects/[id]/exports/jira",
+    ]);
+    // Safe methods are reads and nothing else.
+    for (const name of classes.get("read") ?? []) expect(name.startsWith("GET ")).toBe(true);
   });
 });

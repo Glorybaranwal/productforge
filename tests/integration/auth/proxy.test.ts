@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRequire } from "node:module";
 
 import { config } from "@/proxy";
-import { updateSession } from "@/src/lib/supabase/proxy";
+import { resetSignInGuard, updateSession } from "@/src/lib/supabase/proxy";
 
 type Cookie = { name: string; value: string };
 type SetAll = (cookies: (Cookie & { options: object })[], headers: Record<string, string>) => void;
@@ -224,6 +224,69 @@ describe("proxy (PF-013)", () => {
       });
       await updateSession(signedIn);
       expect(signedIn.headers.get("x-pf-surface")).toBe("page");
+    });
+  });
+
+  describe("rate limits at the edge (PF-084)", () => {
+    const send = (path: string, init: { method?: string; headers?: Record<string, string> } = {}) =>
+      new NextRequest(new URL(path, "http://localhost:3000"), init);
+    beforeEach(() => {
+      resetSignInGuard();
+      fake.signedIn = true;
+    });
+
+    it("stamps the rate-limit class, overwriting what the client sent and removing it where nothing is metered", async () => {
+      const bucketOf = async (path: string, method: string, sent?: string) => {
+        const req = send(path, { method, headers: sent ? { "x-pf-bucket": sent } : {} });
+        await updateSession(req);
+        return req.headers.get("x-pf-bucket");
+      };
+      expect(await bucketOf("/api/projects/p1/sources", "POST")).toBe("upload");
+      expect(await bucketOf("/api/projects", "GET")).toBe("read");
+      // A client claiming the cheap class on an upload is overwritten, not believed.
+      expect(await bucketOf("/api/projects/p1/sources", "POST", "read")).toBe("upload");
+      // A page is not metered, so a forged header is removed rather than left for the app to read.
+      expect(await bucketOf("/dashboard", "GET", "read")).toBeNull();
+    });
+
+    it("answers the 21st sign-in attempt from one address with 429 and Retry-After", async () => {
+      const attempt = () =>
+        updateSession(send("/auth/callback", { headers: { "x-real-ip": "203.0.113.7" } }));
+      for (let i = 0; i < 20; i += 1) expect((await attempt()).status).not.toBe(429);
+      const refused = await attempt();
+      expect(refused.status).toBe(429);
+      const wait = Number(refused.headers.get("retry-after"));
+      expect(wait).toBeGreaterThanOrEqual(1);
+      expect(wait).toBeLessThanOrEqual(60);
+      expect(((await refused.json()) as { error: { code: string } }).error.code).toBe(
+        "RATE_LIMITED",
+      );
+      // Another address is unaffected.
+      const other = await updateSession(
+        send("/auth/callback", { headers: { "x-real-ip": "203.0.113.8" } }),
+      );
+      expect(other.status).not.toBe(429);
+    });
+
+    it("meters a form post to /login but never a view of the page", async () => {
+      const headers = { "x-real-ip": "203.0.113.9" };
+      for (let i = 0; i < 50; i += 1)
+        expect((await updateSession(send("/login", { headers }))).status).not.toBe(429);
+      fake.signedIn = false;
+      for (let i = 0; i < 20; i += 1)
+        await updateSession(send("/login", { method: "POST", headers }));
+      expect((await updateSession(send("/login", { method: "POST", headers }))).status).toBe(429);
+    });
+
+    it("meters nothing when the platform gives no address, rather than sharing one bucket", async () => {
+      for (let i = 0; i < 60; i += 1)
+        expect((await updateSession(send("/auth/callback"))).status).not.toBe(429);
+    });
+
+    it("reads the first address of x-forwarded-for when there is no x-real-ip", async () => {
+      const headers = { "x-forwarded-for": "198.51.100.4, 10.0.0.1" };
+      for (let i = 0; i < 20; i += 1) await updateSession(send("/auth/callback", { headers }));
+      expect((await updateSession(send("/auth/callback", { headers }))).status).toBe(429);
     });
   });
 });
