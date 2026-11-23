@@ -11,7 +11,7 @@ import { adminDb } from "@/src/db/client";
 import { rateLimitHits } from "@/src/db/schema";
 
 import { AppError } from "./errors";
-import { logger } from "./logger";
+import { logger, safeErrorMessage } from "./logger";
 
 export type Bucket = "upload" | "export" | "generate" | "write" | "read";
 
@@ -41,8 +41,10 @@ const BUCKETS = Object.keys(DEFAULT_LIMITS) as Bucket[];
 
 /** Plain decimal digits that make a positive safe integer, else the fallback (a typo must not disable a limit). */
 const positiveInt = (value: string | undefined, fallback: number) => {
-  if (!value || !/^\d+$/.test(value)) return fallback;
-  const n = Number(value);
+  // Trim first: a stray space or newline in a .env file must not quietly turn a limit back into the default.
+  const text = value?.trim();
+  if (!text || !/^\d+$/.test(text)) return fallback;
+  const n = Number(text);
   return Number.isSafeInteger(n) && n > 0 ? n : fallback;
 };
 
@@ -129,7 +131,7 @@ export async function checkRateLimit(
     logger.error("Rate limit counter failed; request not metered", {
       bucket,
       principal: describePrincipal(principal),
-      error: err instanceof Error ? err.message : String(err),
+      error: safeErrorMessage(err),
     });
     return;
   }

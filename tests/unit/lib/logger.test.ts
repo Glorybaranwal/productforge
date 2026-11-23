@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { MAX_LOGGED_STRING, redact } from "@/src/lib/logger";
+import { DrizzleQueryError } from "drizzle-orm/errors";
+
+import { MAX_LOGGED_STRING, redact, safeErrorMessage } from "@/src/lib/logger";
 
 describe("redact (ADR-035)", () => {
   it("masks values under secret-looking keys, at any depth", () => {
@@ -68,5 +70,40 @@ describe("redact (ADR-035)", () => {
       none: null,
     };
     expect(redact(meta)).toEqual(meta);
+  });
+});
+
+describe("safeErrorMessage", () => {
+  const id = "3f2c9a52-7d1e-4c58-9a40-1b6e8d0c7f11";
+  const query = (cause?: Error) =>
+    new DrizzleQueryError(
+      'insert into "rate_limit_hits" ("principal", "bucket") values ($1, $2) on conflict do update',
+      [`user:${id}`, "upload"],
+      cause,
+    );
+
+  it("reports the driver's error, not the SQL and its bound parameters", () => {
+    const err = query(new Error("connection terminated unexpectedly"));
+    // The premise: drizzle's own message does carry the parameter.
+    expect(err.message).toContain(id);
+    expect(safeErrorMessage(err)).toBe("connection terminated unexpectedly");
+  });
+
+  it("never returns the parameters, with or without a cause", () => {
+    expect(safeErrorMessage(query())).toBe("Query failed");
+    expect(safeErrorMessage(query(query(new Error("pool exhausted"))))).toBe("pool exhausted");
+    expect(safeErrorMessage(query(query()))).toBe("Query failed");
+  });
+
+  it("passes an ordinary error's message through", () => {
+    expect(safeErrorMessage(new Error("DATABASE_URL isn't set"))).toBe("DATABASE_URL isn't set");
+    expect(safeErrorMessage("boom")).toBe("boom");
+    expect(safeErrorMessage({ id })).toBe("Unknown error");
+  });
+
+  it("is what redact() uses for an Error in a log field", () => {
+    const out = JSON.stringify(redact({ err: query(new Error("timeout")) }));
+    expect(out).toContain("timeout");
+    expect(out).not.toContain(id);
   });
 });

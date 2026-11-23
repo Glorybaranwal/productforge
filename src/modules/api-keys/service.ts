@@ -8,7 +8,7 @@ import { mintApiKey, parseApiKey, secretMatches, type KeyEnv } from "@/src/lib/a
 import { effectiveRole, type Session } from "@/src/lib/auth";
 import { AppError, parseOrThrow } from "@/src/lib/errors";
 import { newId, nowIso } from "@/src/lib/ids";
-import { logger } from "@/src/lib/logger";
+import { logger, safeErrorMessage } from "@/src/lib/logger";
 import { recordAudit } from "@/src/modules/audit/service";
 import { workspaceRepository } from "@/src/modules/workspaces/repository";
 import type { WorkspaceContext } from "@/src/modules/workspaces/schema";
@@ -230,7 +230,7 @@ export async function contextForApiKey(
   } catch (err) {
     logger.warn("Couldn't record API key use", {
       prefix: row.prefix,
-      error: err instanceof Error ? err.message : String(err),
+      error: safeErrorMessage(err),
     });
   }
 
@@ -250,7 +250,7 @@ export async function contextForApiKey(
     } catch (err) {
       logger.warn("Couldn't record API key first use", {
         prefix: row.prefix,
-        error: err instanceof Error ? err.message : String(err),
+        error: safeErrorMessage(err),
       });
     }
   }

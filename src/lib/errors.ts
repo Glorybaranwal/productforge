@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { logger } from "./logger";
+import { logger, safeErrorMessage } from "./logger";
 
 export type ErrorCode =
   | "VALIDATION_ERROR"
@@ -76,7 +76,7 @@ export function toErrorBody(err: unknown): { status: number; body: ApiErrorBody 
       },
     };
   }
-  logger.error("Unhandled error", { error: err instanceof Error ? err.message : String(err) });
+  logger.error("Unhandled error", { error: safeErrorMessage(err) });
   return {
     status: 500,
     body: { error: { code: "INTERNAL", message: "Something went wrong. Please try again." } },

@@ -5,7 +5,7 @@ import { getLLMClient, LLMError, type LLMClient } from "@/src/ai/llm-client";
 import { loadPrompt } from "@/src/ai/prompts/load";
 import { zodFieldErrors } from "@/src/lib/errors";
 import { newId, nowIso } from "@/src/lib/ids";
-import { logger } from "@/src/lib/logger";
+import { logger, safeErrorMessage } from "@/src/lib/logger";
 import { sha256 } from "@/src/lib/text";
 import { agentRunRepository } from "@/src/modules/agent-runs/repository";
 import type { AgentRun, RunEvent, StageName } from "@/src/modules/agent-runs/schema";
@@ -87,7 +87,7 @@ export async function runStage<I, O>(
         attempts: totals.attempts,
       });
     } catch (err) {
-      logger.warn("Couldn't save run progress", { runId: run.id, error: String(err) });
+      logger.warn("Couldn't save run progress", { runId: run.id, error: safeErrorMessage(err) });
     }
   };
 
@@ -158,7 +158,7 @@ export async function runStage<I, O>(
   } catch (err) {
     const message = err instanceof LLMError ? err.message : "The AI step failed unexpectedly";
     if (!(err instanceof LLMError))
-      logger.error("Stage crashed", { stage: stage.name, error: String(err) });
+      logger.error("Stage crashed", { stage: stage.name, error: safeErrorMessage(err) });
     return await finish("failed", message);
   }
 }

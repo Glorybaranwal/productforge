@@ -72,12 +72,16 @@ describe("limitFor", () => {
     expect(limitFor("read", env)).toBe(240);
   });
 
-  it.each(["abc", "0", "-5", "2.5", "", "1e21", "0x10", " 5", "9007199254740993"])(
+  it.each(["abc", "0", "-5", "2.5", "", "   ", "1e21", "0x10", "9007199254740993"])(
     "falls back to the default for the bad value %j",
     (v) => {
       expect(limitFor("write", { RATE_LIMIT_WRITE_PER_MIN: v })).toBe(60);
     },
   );
+
+  it.each([" 5", "5\n", "\t5 "])("trims stray whitespace around %j", (v) => {
+    expect(limitFor("write", { RATE_LIMIT_WRITE_PER_MIN: v })).toBe(5);
+  });
 
   it("exposes every bucket on LIMITS", () => {
     expect(Object.keys(LIMITS).sort()).toEqual(["export", "generate", "read", "upload", "write"]);

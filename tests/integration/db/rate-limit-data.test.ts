@@ -4,6 +4,7 @@
  */
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
+import { DrizzleQueryError } from "drizzle-orm/errors";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/src/db/schema";
@@ -156,6 +157,23 @@ describe("checkRateLimit when the counter fails (fails open)", () => {
     // The raw principal (it holds a user id) is never logged.
     expect(JSON.stringify(meta)).not.toContain(USERS.ana);
     expect(meta).toMatchObject({ bucket: "upload" });
+  });
+
+  it("does not log the principal when the failure is a drizzle query error", async () => {
+    const log = vi.spyOn(logger, "error").mockImplementation(() => {});
+    // What drizzle really throws: a message holding the SQL and every bound parameter.
+    const wrapped = new DrizzleQueryError(
+      'insert into "rate_limit_hits" ("principal", "bucket", "window_start", "hits") values ($1, $2, $3, $4)',
+      [user, "upload", T0.toISOString(), 1],
+      new Error("connection terminated unexpectedly"),
+    );
+    expect(wrapped.message).toContain(USERS.ana);
+    holder.db = broken(wrapped);
+    await expect(checkRateLimit(user, "upload", T0)).resolves.toBeUndefined();
+    const logged = JSON.stringify(log.mock.calls);
+    expect(logged).toContain("connection terminated unexpectedly");
+    expect(logged).not.toContain(USERS.ana);
+    expect(logged).not.toContain("params:");
   });
 
   it("lets the request through when the counter hangs past the timeout", async () => {

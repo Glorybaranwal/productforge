@@ -19,6 +19,30 @@ const SECRET_VALUE =
 export const MAX_LOGGED_STRING = 300;
 const MAX_DEPTH = 4;
 
+/**
+ * A message that is safe to log for any caught value. Drizzle wraps a failed query in an error whose
+ * message is `Failed query: <sql>\nparams: <values>`, so it carries every bound parameter: user ids,
+ * API key ids, row contents. Neither the logger's cut nor its credential patterns remove those (a uuid
+ * is not credential-shaped, and the params start inside the first 300 characters), so this reports the
+ * underlying cause instead (the driver's own error, which names the failure without the values), or
+ * just "Query failed" when there is none. Use it, not `err.message` or `String(err)`, in a `logger` call.
+ */
+export function safeErrorMessage(err: unknown): string {
+  let current = err;
+  // Unwrap nested wrappers, with a bound so a cause cycle can't loop forever.
+  for (
+    let i = 0;
+    i < 5 && current instanceof Error && /^Failed query:/.test(current.message);
+    i += 1
+  )
+    current = current.cause;
+  if (current instanceof Error) {
+    return /^Failed query:/.test(current.message) ? "Query failed" : current.message;
+  }
+  if (err instanceof Error) return "Query failed";
+  return typeof err === "string" ? err : "Unknown error";
+}
+
 /** What a log line may hold: secrets masked, long text cut, errors reduced to name and message. */
 export function redact(value: unknown, depth = 0): unknown {
   if (typeof value === "string") {
@@ -28,7 +52,7 @@ export function redact(value: unknown, depth = 0): unknown {
       : masked;
   }
   if (value instanceof Error)
-    return { name: value.name, message: redact(value.message, depth + 1) };
+    return { name: value.name, message: redact(safeErrorMessage(value), depth + 1) };
   if (value === null || typeof value !== "object") return value;
   if (depth >= MAX_DEPTH) return "[nested]";
   if (Array.isArray(value)) return value.slice(0, 20).map((v) => redact(v, depth + 1));
