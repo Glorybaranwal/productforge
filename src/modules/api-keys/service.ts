@@ -122,8 +122,12 @@ export async function revokeApiKey(ctx: WorkspaceContext, id: string): Promise<A
   refuseKeyManagementViaKey(ctx);
   const at = nowIso();
   return unitOfWork(ctx, async (ctx) => {
+    // Already revoked: hand it back untouched, no write and no second audit entry. A key the caller
+    // can't see isn't found here, so it falls through to `revoke`, which answers NOT_FOUND.
+    const existing = (await listApiKeys(ctx)).find((k) => k.id === id);
+    if (existing?.revokedAt) return existing;
     const key = await apiKeyRepository.revoke(ctx, id, at);
-    // `revoke` returns an already-revoked key unchanged, so only our own timestamp means we did it.
+    // Two revokes racing: the loser gets the winner's row back, which carries the winner's timestamp.
     if (key.revokedAt === at)
       await recordAudit(ctx, {
         entityType: "api_key",
