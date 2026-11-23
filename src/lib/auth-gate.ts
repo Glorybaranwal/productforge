@@ -67,3 +67,25 @@ export function isCrossSiteWrite(request: {
   if (request.origin) return request.origin !== request.selfOrigin;
   return request.secFetchSite === "cross-site";
 }
+
+/**
+ * Which kind of request this is, decided once in `proxy.ts` and passed to the app in a header
+ * (PF-083, ADR-036). `currentContext` honours an API key only on an `api-*` surface, so a key can
+ * never open a `/dashboard` page. `api-write` is any method that can change state, which is how a
+ * `read` key is held to reads even on routes with no role check (members may add sources, edit
+ * drafts and so on). Anything that isn't `/api` is a `page`.
+ *
+ * Deliberate exception: a safe method may append an audit row. Three GET routes (the PRD and backlog
+ * Markdown and the traceability CSV) call `recordExport`, which only calls `recordAudit`, and a `read`
+ * key must still be able to export: CI pulling data and the Jira sync are what ADR-036 is for. An
+ * audit row records that a read happened; it is not domain state. Suppressing it would lose the event
+ * you most want traced. Anything beyond audit on a safe method is a defect: make the route a POST.
+ */
+export type Surface = "page" | "api-read" | "api-write";
+export const SURFACE_HEADER = "x-pf-surface";
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+export function requestSurface(pathname: string, method: string): Surface {
+  if (!under(pathname, "/api")) return "page";
+  return SAFE_METHODS.has(method.toUpperCase()) ? "api-read" : "api-write";
+}

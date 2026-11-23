@@ -1,4 +1,5 @@
 /** Shared guards for the people-side story actions (edit.ts, review.ts). */
+import { refuseApiKeyApproval } from "@/src/lib/auth";
 import { AppError } from "@/src/lib/errors";
 import { nowIso } from "@/src/lib/ids";
 import { recordAudit } from "@/src/modules/audit/service";
@@ -61,10 +62,14 @@ export async function refreshEpics(ctx: WorkspaceContext, projectId: string): Pr
   for (const epic of b.rows.epics) {
     const live = b.current.filter((s) => s.epicId === epic.id && s.status !== "REJECTED");
     const status = live.length && live.every((s) => s.status === "APPROVED") ? "APPROVED" : "DRAFT";
-    if (epic.status !== status)
+    if (epic.status !== status) {
+      // An epic reading APPROVED is an approval (CLAUDE.md §7.7): only a person's action may cause it.
+      // `rejectStory` checks this before it writes anything; this is the backstop for every other caller.
+      if (status === "APPROVED") refuseApiKeyApproval(ctx);
       await backlogRepository.updateEpic(ctx, epic.id, {
         status,
         updatedAt: nowIso(),
       });
+    }
   }
 }

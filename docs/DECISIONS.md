@@ -861,3 +861,62 @@ round trip, on the metered routes only. The per-IP guard and the live-view cap a
 approximate; they are speed bumps, and the Postgres counters are the real control. If a service ever genuinely
 needs rights no member has, this decision is the thing to revisit — that is the point where real service
 principals and their policies become worth the cost.
+
+#### ADR-036 follow-up (PF-083, 2026-11-23) — what the build changed
+
+Four things came out of implementing this decision, all recorded here because the ADR as written was
+wrong about one of them.
+
+**The role ceiling alone cannot hold a `read` key to reads.** ADR-036 said the effective role would be
+the lower of the key's scope and the member's role, and left enforcement to `requireRole`. That does
+not work: member-level writes — adding a source, editing a draft, answering a question — deliberately
+have **no** `requireRole` at all, because ADR-014 and ADR-028 let developers and QA do exactly those
+things. A `read` key would have been free to write every one of them. So enforcement is by HTTP method
+instead: `requestSurface(pathname, method)` in `src/lib/auth-gate.ts` classifies every request as
+`page`, `api-read` or `api-write`; `proxy.ts` stamps it into `x-pf-surface`, overwriting whatever the
+client sent; and `src/lib/request-key.ts` honours a key only on an `api-*` surface, failing closed when
+the header is missing or unexpected. `effectiveRole` stays as a second layer, so a `read` key also acts
+as the weakest role and a `write` key never exceeds its owner's.
+
+This made `proxy.ts`'s matcher load-bearing. Its exclusion of paths ending in an image extension let
+`/dashboard/projects/<id>.png` reach a page handler with no proxy at all — and therefore with a
+client-supplied surface header, and without the cross-site-write check or the sign-in gate, which had
+been true before PF-083 and unnoticed. `/api/:path*` and `/dashboard/:path*` are now their own matcher
+entries.
+
+**A safe method may still append an audit row, and that is allowed.** `GET` on the PRD markdown, backlog
+markdown and traceability CSV routes calls `recordExport`, which inserts one `audit_logs` row. These
+stay `api-read` rather than being reclassified as writes. Exporting is a read, and a `read` key that
+cannot export defeats the two cases this decision exists for (CI pulling data, the Jira sync). The rule's
+purpose is that a key cannot change *domain* state; an append-only row recording that a read happened is
+provenance of the read. Suppressing the row instead would be worse, because an export is exactly the
+event worth tracing. Checked under real RLS: of every public table only `audit_logs` changes, and a
+`read` key's insert succeeds despite acting as the weakest role. Anything beyond an audit row on a safe
+method is a defect, not a precedent.
+
+**Six paths write `APPROVED`, not five.** Besides `approvePrd`, `approveStory`, `approveReadyStories`,
+`confirmRequirements` and `approveChange`, the epic rollup `refreshEpics` sets an epic to `APPROVED`, and
+`rejectStory` calls it — so rejecting an epic's last unapproved story would have approved that epic with
+no human action. It was missed at first because the status is computed into a variable rather than
+written as a literal, so a grep for `status: "APPROVED"` could not see it. The guard is in two places:
+an atomic pre-check in `rejectStory` before anything is written or audited, and a backstop in
+`refreshEpics`.
+
+**Two smaller points.** The verify path reads `workspaceRepository` directly rather than calling
+`ensureWorkspace`, which creates a workspace for a user who has none — a key must never create one, and
+a missing membership is how a removed member's key stops working. And `expires_at` is mandatory, capped
+by the table at 366 days, defaulted by the service to 90; the service validates the window itself so a
+bad date is a `VALIDATION_ERROR` rather than a raw Postgres `23514` the error layer cannot map. The
+session a key produces is named `API key <prefix>`, because the type that carries the hash deliberately
+omits the key's name and the prefix is the log-correlation handle anyway.
+
+**Final review: what a refused key is told, and first use.** Before the secret matches (malformed, unknown
+prefix, wrong secret) a key gets one byte-identical `401 Invalid API key`, so someone holding nothing
+cannot enumerate prefixes or probe the compare. After it matches the caller has proved they hold the key,
+so revoked, expired and removed-member each say so ("This API key was revoked.", "...expired on
+YYYY-MM-DD.", "The member this key belongs to is no longer in this workspace."), still `UNAUTHORIZED`;
+this is the same reasoning that already gives a read key on a write a distinguishable 403, and it fixes the
+likeliest real failure, a key hitting its 90-day expiry. Reads are not audited, so a key's first use writes
+an `api_key.first_used` entry (best-effort, through the key's own context, never failing the request);
+`last_used_at` alone is overwritten by the next use. Two first uses racing may each write one entry.
+

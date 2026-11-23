@@ -5,6 +5,9 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createRequire } from "node:module";
+
+import { config } from "@/proxy";
 import { updateSession } from "@/src/lib/supabase/proxy";
 
 type Cookie = { name: string; value: string };
@@ -35,6 +38,12 @@ vi.mock("@supabase/ssr", () => ({
     }),
   ),
 }));
+
+// Next compiles the matcher with its own bundled path-to-regexp, which ships no types.
+const nodeRequire = createRequire(import.meta.url);
+const { pathToRegexp } = nodeRequire("next/dist/compiled/path-to-regexp") as {
+  pathToRegexp: (pattern: string) => RegExp;
+};
 
 const request = (path: string) => new NextRequest(new URL(path, "http://localhost:3000"));
 
@@ -119,5 +128,102 @@ describe("proxy (PF-013)", () => {
     const res = await updateSession(request("/dashboard"));
     expect(res.headers.get("x-middleware-next")).toBe("1");
     expect(fake.createServerClient).not.toHaveBeenCalled();
+  });
+
+  describe("API keys (PF-083)", () => {
+    const KEY = `Bearer pf_live_abcdefgh_${"A".repeat(43)}`;
+    const keyed = (
+      path: string,
+      init: { method?: string; headers?: Record<string, string> } = {},
+    ) =>
+      new NextRequest(new URL(path, "http://localhost:3000"), {
+        ...init,
+        headers: { authorization: KEY, ...init.headers },
+      });
+
+    it("lets a request to /api through on a key alone, with no session and no lookup", async () => {
+      const res = await updateSession(keyed("/api/projects"));
+      expect(res.status).toBe(200);
+      expect(res.headers.get("location")).toBeNull();
+    });
+
+    it("never lets a key open a dashboard page", async () => {
+      for (const path of ["/dashboard", "/dashboard/projects/p1/prd"]) {
+        const res = await updateSession(keyed(path));
+        expect(res.status).toBe(307);
+        expect(res.headers.get("location")).toContain("/login?next=");
+      }
+    });
+
+    it("still answers 401 to /api with another kind of bearer token or a lookalike header", async () => {
+      for (const authorization of [
+        "Bearer eyJhbGciOiJIUzI1NiJ9.e30.abc",
+        "Basic abc",
+        "pf_live_x",
+      ]) {
+        const res = await updateSession(
+          new NextRequest(new URL("/api/projects", "http://localhost:3000"), {
+            headers: { authorization },
+          }),
+        );
+        expect(res.status).toBe(401);
+      }
+    });
+
+    it("stamps every request with its surface, overwriting anything the client sent", async () => {
+      const surfaceOf = async (path: string, method: string, sent?: string) => {
+        const req = keyed(path, { method, headers: sent ? { "x-pf-surface": sent } : {} });
+        fake.signedIn = true; // so a /dashboard request gets past the gate and is forwarded
+        await updateSession(req);
+        return req.headers.get("x-pf-surface");
+      };
+      expect(await surfaceOf("/api/projects", "GET")).toBe("api-read");
+      expect(await surfaceOf("/api/projects", "POST")).toBe("api-write");
+      expect(await surfaceOf("/api/projects/p1", "DELETE")).toBe("api-write");
+      expect(await surfaceOf("/dashboard", "GET")).toBe("page");
+      // A client claiming a different surface is overwritten, not believed.
+      expect(await surfaceOf("/dashboard", "GET", "api-write")).toBe("page");
+      expect(await surfaceOf("/api/projects", "GET", "page")).toBe("api-read");
+      expect(await surfaceOf("/api/projects", "DELETE", "api-read")).toBe("api-write");
+    });
+
+    it("runs on /api and /dashboard whatever the last segment looks like, so the surface header is never the client's", () => {
+      const runs = (path: string) => config.matcher.some((m) => pathToRegexp(m).test(path));
+      // These end like a static image, so the first matcher entry skips them; the others must not.
+      for (const path of [
+        "/dashboard/projects/abc.png",
+        "/dashboard/x/y.ico",
+        "/api/projects/abc.png",
+        "/api/workspace/api-keys/abc.svg",
+        "/api/prds/x.jpeg",
+        "/dashboard",
+        "/api/projects",
+      ])
+        expect(runs(path), path).toBe(true);
+      // Real static assets are still skipped.
+      for (const path of [
+        "/logo.png",
+        "/favicon.ico",
+        "/_next/static/chunk.js",
+        "/images/hero.webp",
+      ])
+        expect(runs(path), path).toBe(false);
+    });
+
+    it("does not let a key plus a forged surface header open a dashboard path that ends in .png", async () => {
+      const forged = keyed("/dashboard/projects/abc.png", {
+        headers: { "x-pf-surface": "api-read" },
+      });
+      const res = await updateSession(forged);
+      expect(res.status).toBe(307);
+      expect(res.headers.get("location")).toContain("/login?next=");
+      // And signed in, the surface is still the proxy's, never the client's.
+      fake.signedIn = true;
+      const signedIn = keyed("/dashboard/projects/abc.png", {
+        headers: { "x-pf-surface": "api-write" },
+      });
+      await updateSession(signedIn);
+      expect(signedIn.headers.get("x-pf-surface")).toBe("page");
+    });
   });
 });

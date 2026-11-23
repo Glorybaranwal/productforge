@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { gate, isCrossSiteWrite, safeNext } from "@/src/lib/auth-gate";
+import {
+  gate,
+  isCrossSiteWrite,
+  requestSurface,
+  safeNext,
+  SURFACE_HEADER,
+} from "@/src/lib/auth-gate";
 
 const at = (path: string) => {
   const url = new URL(path, "http://localhost:3000");
@@ -88,5 +94,34 @@ describe("isCrossSiteWrite (ADR-023)", () => {
     expect(req("GET", "/api/projects", "https://evil.example")).toBe(false);
     expect(req("POST", "/api/projects", null)).toBe(false);
     expect(req("POST", "/login", "https://evil.example")).toBe(false);
+  });
+});
+
+describe("requestSurface (PF-083)", () => {
+  it("calls /api GET, HEAD and OPTIONS reads, and every other method on /api a write", () => {
+    for (const method of ["GET", "HEAD", "OPTIONS", "get"])
+      expect(requestSurface("/api/projects", method)).toBe("api-read");
+    for (const method of ["POST", "PUT", "PATCH", "DELETE", "post", "PURGE"])
+      expect(requestSurface("/api/projects/p1", method)).toBe("api-write");
+  });
+
+  it("calls everything outside /api a page, so an API key is never honoured there", () => {
+    for (const path of ["/dashboard", "/dashboard/projects/p1", "/login", "/auth/callback", "/"])
+      for (const method of ["GET", "POST"]) expect(requestSurface(path, method)).toBe("page");
+  });
+
+  it("matches /api by path segment, not by prefix", () => {
+    expect(requestSurface("/api", "GET")).toBe("api-read");
+    expect(requestSurface("/apiary", "GET")).toBe("page");
+    expect(requestSurface("/dashboard/api/x", "GET")).toBe("page");
+  });
+
+  it("treats HEAD as a read, as Next runs the GET handler for it (exports may append an audit row)", () => {
+    expect(requestSurface("/api/prds/p1/markdown", "HEAD")).toBe("api-read");
+    expect(requestSurface("/api/projects/p1/traceability/csv", "GET")).toBe("api-read");
+  });
+
+  it("names the header the app reads", () => {
+    expect(SURFACE_HEADER).toBe("x-pf-surface");
   });
 });

@@ -1,4 +1,5 @@
 import type { AgentRun, IdempotencyRecord } from "@/src/modules/agent-runs/schema";
+import type { NewApiKey } from "@/src/modules/api-keys/schema";
 import type { AuditLog } from "@/src/modules/audit/schema";
 import type { ImpactReview, RequirementChange } from "@/src/modules/impact/schema";
 import type { Prd } from "@/src/modules/prd/schema";
@@ -19,6 +20,8 @@ export type DbState = {
   workspaceMembers: WorkspaceMember[];
   projects: Project[];
   auditLogs: AuditLog[];
+  // Module 0: API keys (PF-083)
+  apiKeys: NewApiKey[];
   // Module 2
   sources: SourceDocument[];
   agentRuns: AgentRun[];
@@ -47,6 +50,7 @@ export const COLLECTIONS = [
   "workspaceMembers",
   "projects",
   "auditLogs",
+  "apiKeys",
   "sources",
   "agentRuns",
   "idempotencyKeys",
@@ -72,6 +76,7 @@ export function emptyState(): DbState {
     workspaceMembers: [],
     projects: [],
     auditLogs: [],
+    apiKeys: [],
     sources: [],
     agentRuns: [],
     idempotencyKeys: [],

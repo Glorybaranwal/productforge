@@ -11,10 +11,10 @@ function minLevel(): Level {
 
 /** Keys whose values are never logged (ADR-035). */
 const SECRET_KEY =
-  /pass(word)?|secret|token|api[-_]?key|authori[sz]ation|cookie|service[-_]?role|private[-_]?key/i;
-/** Values that look like credentials wherever they appear: OpenAI/Supabase keys, JWTs, bearer tokens. */
+  /pass(word)?|secret|plaintext|token|api[-_]?key|authori[sz]ation|cookie|service[-_]?role|private[-_]?key/i;
+/** Values that look like credentials wherever they appear: OpenAI/Supabase/ProductForge API keys, JWTs, bearer tokens. */
 const SECRET_VALUE =
-  /\b(sk-[A-Za-z0-9_-]{16,}|sb_(secret|publishable)_[A-Za-z0-9_-]{8,}|eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}|Bearer\s+[\w.-]{16,})/g;
+  /\b(sk-[A-Za-z0-9_-]{16,}|pf_(live|test)_[a-z2-7]{8}_[A-Za-z0-9_-]{16,}|sb_(secret|publishable)_[A-Za-z0-9_-]{8,}|eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}|Bearer\s+[\w.-]{16,})/g;
 /** Longer strings are cut: document text and prompts don't belong in logs. */
 export const MAX_LOGGED_STRING = 300;
 const MAX_DEPTH = 4;
