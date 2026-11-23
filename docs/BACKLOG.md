@@ -469,7 +469,11 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
     stored; only a SHA-256 hash and the non-secret `prefix` (for display and log correlation) are kept.
   - *2026-11-23:* data layer done (`src/db/schema/api-keys.ts`, migration 0010, `src/modules/api-keys/`,
     PGlite policy tests). One `scope` per key, not a list: write subsumes read, and no scope approves.
-    `expires_at` is mandatory and the table caps it at 366 days. Left: the verify path and the settings screen.
+    `expires_at` is mandatory and the table caps it at 366 days.
+  - *2026-11-23:* verify path and enforcement done (`src/lib/api-key.ts`, `src/lib/request-key.ts`,
+    `src/modules/api-keys/service.ts`, the gate, `currentContext`, both routes). Enforcement is by HTTP
+    method, not by role: see the ADR-036 follow-up — member writes have no role check, so the ceiling alone
+    could not hold a `read` key to reads. Left: the settings screen (Task 3).
   - `src/modules/api-keys/{schema,service,repository,store-repository,pg-repository}.ts` in the usual shape.
   - `src/lib/auth-key.ts`: `Authorization: Bearer pf_…` → prefix lookup → constant-time hash compare → expiry and
     revocation check → membership re-read → context via the existing `actAs(user_id)` path, with the key's
