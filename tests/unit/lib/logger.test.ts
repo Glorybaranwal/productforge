@@ -95,6 +95,27 @@ describe("safeErrorMessage", () => {
     expect(safeErrorMessage(query(query()))).toBe("Query failed");
   });
 
+  it("still unwraps when the error was re-wrapped the way demo-seed's step() does", () => {
+    const inner = query(new Error("connection terminated unexpectedly"));
+    // src/modules/projects/demo-seed.ts: the original's message is interpolated into a new one and
+    // the original is kept as `cause`, so "Failed query:" is no longer at the start of the message.
+    const wrapped = new Error(`Seed step "discovery" failed: ${inner.message}`, { cause: inner });
+    expect(wrapped.message).toContain(id);
+    expect(wrapped.message.startsWith("Failed query:")).toBe(false);
+    const safe = safeErrorMessage(wrapped);
+    expect(safe).toBe("connection terminated unexpectedly");
+    expect(safe).not.toContain(id);
+    expect(safe).not.toContain("params:");
+    const logged = JSON.stringify(redact({ error: wrapped }));
+    expect(logged).not.toContain(id);
+    expect(logged).not.toContain("params:");
+  });
+
+  it("returns nothing of a re-wrapper that lost its cause", () => {
+    const wrapped = new Error(`Seed step "discovery" failed: ${query().message}`);
+    expect(safeErrorMessage(wrapped)).toBe("Query failed");
+  });
+
   it("passes an ordinary error's message through", () => {
     expect(safeErrorMessage(new Error("DATABASE_URL isn't set"))).toBe("DATABASE_URL isn't set");
     expect(safeErrorMessage("boom")).toBe("boom");

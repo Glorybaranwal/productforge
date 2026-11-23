@@ -32,12 +32,12 @@ export function safeErrorMessage(err: unknown): string {
   // Unwrap nested wrappers, with a bound so a cause cycle can't loop forever.
   for (
     let i = 0;
-    i < 5 && current instanceof Error && /^Failed query:/.test(current.message);
+    i < 5 && current instanceof Error && /Failed query:/.test(current.message);
     i += 1
   )
     current = current.cause;
   if (current instanceof Error) {
-    return /^Failed query:/.test(current.message) ? "Query failed" : current.message;
+    return /Failed query:/.test(current.message) ? "Query failed" : current.message;
   }
   if (err instanceof Error) return "Query failed";
   return typeof err === "string" ? err : "Unknown error";
