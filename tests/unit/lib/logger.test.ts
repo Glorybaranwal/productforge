@@ -41,6 +41,11 @@ describe("redact (ADR-035)", () => {
       ok: "pf_live",
     });
     expect(redact({ text: "pf_test_abcdefgh_" + "A".repeat(43) })).toEqual({ text: "[redacted]" });
+    // Under a key name too, even for a value the patterns would not recognise.
+    expect(redact({ plaintext: "anything", secret_hash: "abc" })).toEqual({
+      plaintext: "[redacted]",
+      secret_hash: "[redacted]",
+    });
   });
 
   it("cuts long text such as a pasted document", () => {

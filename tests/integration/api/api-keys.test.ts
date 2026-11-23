@@ -20,6 +20,16 @@ import * as approveStoryRoute from "@/app/api/stories/[id]/approve/route";
 import * as approveBacklogRoute from "@/app/api/projects/[id]/backlog/approve/route";
 import * as confirmDiscoveryRoute from "@/app/api/projects/[id]/discovery/confirm/route";
 import * as approveChangeRoute from "@/app/api/changes/[id]/approve/route";
+import * as backlogRoute from "@/app/api/projects/[id]/backlog/route";
+import * as backlogMarkdownRoute from "@/app/api/projects/[id]/backlog/markdown/route";
+import * as generateBacklogRoute from "@/app/api/projects/[id]/backlog/generate/route";
+import * as prdMarkdownRoute from "@/app/api/prds/[id]/markdown/route";
+import * as prdStateRoute from "@/app/api/projects/[id]/prd/route";
+import * as rejectStoryRoute from "@/app/api/stories/[id]/reject/route";
+import * as traceabilityCsvRoute from "@/app/api/projects/[id]/traceability/csv/route";
+import { setLLMClient } from "@/src/ai/llm-client";
+import { apiKeyRepository } from "@/src/modules/api-keys/repository";
+import { projectThroughGate2 } from "@/tests/helpers/backlog";
 import { readState, transact } from "@/src/db/store";
 import { DEMO_USER, type Session } from "@/src/lib/auth";
 import { hashApiSecret } from "@/src/lib/api-key";
@@ -326,6 +336,134 @@ describe("what a key may do", () => {
     );
     expect(revoke.status).toBe(403);
     expect((await withKey(plaintext, "GET", () => workspaceRoute.GET())).status).toBe(200);
+  });
+});
+
+describe("last use", () => {
+  const lastUsed = async (id: string) =>
+    (
+      (await (await keysRoute.GET()).json()) as {
+        keys: { id: string; lastUsedAt: string | null }[];
+      }
+    ).keys.find((k) => k.id === id)!.lastUsedAt;
+
+  it("is recorded on a successful use", async () => {
+    const { key, plaintext } = await mintKey(null, { name: "used", scope: "read" });
+    expect(await lastUsed(key.id)).toBeNull();
+    expect((await withKey(plaintext, "GET", () => workspaceRoute.GET())).status).toBe(200);
+    expect(await lastUsed(key.id)).not.toBeNull();
+  });
+
+  it("is recorded even when a read key is refused a write, so a leak leaves a trace", async () => {
+    const { key, plaintext } = await mintKey(null, { name: "refused", scope: "read" });
+    const res = await withKey(plaintext, "POST", () =>
+      keysRoute.POST(body("POST", { name: "x", scope: "read" })),
+    );
+    expect(res.status).toBe(403);
+    expect(await lastUsed(key.id)).not.toBeNull();
+  });
+
+  it("failing to record it never fails the request", async () => {
+    const { plaintext } = await mintKey(null, { name: "flaky", scope: "read" });
+    const touch = vi
+      .spyOn(apiKeyRepository, "touchLastUsed")
+      .mockRejectedValue(new Error("db down"));
+    const res = await withKey(plaintext, "GET", () => workspaceRoute.GET());
+    expect(touch).toHaveBeenCalledOnce();
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("exports are reads (they may append an audit row)", () => {
+  it("lets a read key GET and HEAD the PRD, backlog and traceability exports, and the audit row lands", async () => {
+    const { projectId } = await projectThroughGate2();
+    const prd = (await (await prdStateRoute.GET(plain("GET"), params(projectId))).json()) as {
+      versions: { id: string }[];
+    };
+    const exports: [string, (method: string) => Promise<Response>][] = [
+      ["prd", (m) => prdMarkdownRoute.GET(plain(m), params(prd.versions[0]!.id))],
+      ["backlog", (m) => backlogMarkdownRoute.GET(plain(m), params(projectId))],
+      ["traceability", (m) => traceabilityCsvRoute.GET(plain(m), params(projectId))],
+    ];
+    const { key, plaintext } = await mintKey(null, { name: "CI pull", scope: "read" });
+    const exported = async () =>
+      (await readState()).auditLogs.filter((l) => l.action.endsWith(".exported"));
+    const before = (await exported()).length;
+
+    for (const [name, call] of exports)
+      for (const method of ["GET", "HEAD"]) {
+        const res = await withKey(plaintext, method, () => call(method));
+        expect(res.status, `${method} ${name}`).toBe(200);
+      }
+
+    const added = (await exported()).slice(before);
+    expect(added.map((l) => l.action).sort()).toEqual([
+      "backlog.exported",
+      "backlog.exported",
+      "prd.exported",
+      "prd.exported",
+      "traceability.exported",
+      "traceability.exported",
+    ]);
+    for (const entry of added) {
+      expect(entry.actorName).toBe(`API key ${key.prefix}`);
+      expect(entry.actorId).toBe(DEMO_USER.userId);
+    }
+  });
+});
+
+describe("a key can't approve an epic by rejecting its last unapproved story", () => {
+  const epicStatus = async (id: string) =>
+    (await readState()).epics.find((e) => e.id === id)!.status;
+  const storyStatus = async (id: string) =>
+    (await readState()).stories.find((s) => s.id === id)!.status;
+
+  it("is refused, and the story, the epic and the audit log are untouched; a person's rejection still works", async () => {
+    setLLMClient(undefined);
+    process.env.AI_RUNS_PER_USER_PER_MINUTE = "1000";
+    try {
+      const { projectId } = await projectThroughGate2();
+      await generateBacklogRoute.POST(plain("POST"), params(projectId));
+      const backlog = (await (await backlogRoute.GET(plain("GET"), params(projectId))).json()) as {
+        stories: { id: string; epicId: string }[];
+      };
+      const byEpic = Map.groupBy(backlog.stories, (s) => s.epicId);
+      const [epicId, stories] = [...byEpic].sort((a, b) => b[1].length - a[1].length)[0]!;
+      expect(stories.length).toBeGreaterThanOrEqual(2);
+      const last = stories.at(-1)!;
+      // The exact state: every story in the epic approved except `last`; the epic itself still a draft.
+      await transact((s) => {
+        for (const story of s.stories)
+          if (story.epicId === epicId) story.status = story.id === last.id ? "DRAFT" : "APPROVED";
+        s.epics.find((e) => e.id === epicId)!.status = "DRAFT";
+      });
+      const { plaintext } = await mintKey(null, { name: "writer", scope: "write" });
+      const reject = (id: string) =>
+        rejectStoryRoute.POST(body("POST", { reason: "Not what we meant" }), params(id));
+
+      const viaKey = await withKey(plaintext, "POST", () => reject(last.id));
+      expect(viaKey.status).toBe(403);
+      expect(((await viaKey.json()) as { error: { message: string } }).error.message).toBe(
+        NO_APPROVE,
+      );
+      expect(await storyStatus(last.id)).toBe("DRAFT");
+      expect(await epicStatus(epicId)).toBe("DRAFT");
+      expect((await readState()).auditLogs.some((l) => l.action === "story.rejected")).toBe(false);
+
+      // A key may still reject a story that does not complete its epic.
+      const first = stories[0]!;
+      await transact((s) => void (s.stories.find((x) => x.id === first.id)!.status = "DRAFT"));
+      const harmless = await withKey(plaintext, "POST", () => reject(first.id));
+      expect(harmless.status).toBe(200);
+      expect(await epicStatus(epicId)).toBe("DRAFT");
+
+      // The same rejection by a person is allowed, and now the epic is approved, as before.
+      await transact((s) => void (s.stories.find((x) => x.id === first.id)!.status = "APPROVED"));
+      expect((await reject(last.id)).status).toBe(200);
+      expect(await epicStatus(epicId)).toBe("APPROVED");
+    } finally {
+      delete process.env.AI_RUNS_PER_USER_PER_MINUTE;
+    }
   });
 });
 

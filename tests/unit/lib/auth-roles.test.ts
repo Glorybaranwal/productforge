@@ -20,6 +20,16 @@ const refuses = (role: Role, allowed: readonly Role[]) => {
   }
 };
 
+describe("ROLES order", () => {
+  it("is strongest first, because effectiveRole depends on it", () => {
+    // The other effectiveRole tests compute rank from ROLES.indexOf, so they hold under any order;
+    // this is the one that pins it.
+    expect([...ROLES]).toEqual(["owner", "admin", "pm", "developer", "qa"]);
+    expect(ROLES[0]).toBe("owner");
+    expect(ROLES.at(-1)).toBe("qa");
+  });
+});
+
 describe("effectiveRole (PF-083, ADR-036)", () => {
   it("a read key always lands on qa, whatever the member is", () => {
     for (const role of ROLES) expect(effectiveRole("read", role)).toBe("qa");

@@ -188,8 +188,9 @@ const MEMBER_WRITES = [
   "POST /api/prds/[id]/new-version",
   "PATCH /api/stories/[id]",
   "POST /api/projects/[id]/exports/jira",
-  // Any member may mint a key for themselves and revoke their own (PF-083, ADR-036).
-  "POST /api/workspace/api-keys",
+  // Any member may revoke their own key (PF-083, ADR-036). `POST /api/workspace/api-keys` is also
+  // member-level but is deliberately not listed: the role sweep only calls routes with an `[id]` in
+  // the path, so an entry for it would never be read. It is exercised in api-keys.test.ts.
   "DELETE /api/workspace/api-keys/[id]",
 ];
 

@@ -116,6 +116,11 @@ describe("requestSurface (PF-083)", () => {
     expect(requestSurface("/dashboard/api/x", "GET")).toBe("page");
   });
 
+  it("treats HEAD as a read, as Next runs the GET handler for it (exports may append an audit row)", () => {
+    expect(requestSurface("/api/prds/p1/markdown", "HEAD")).toBe("api-read");
+    expect(requestSurface("/api/projects/p1/traceability/csv", "GET")).toBe("api-read");
+  });
+
   it("names the header the app reads", () => {
     expect(SURFACE_HEADER).toBe("x-pf-surface");
   });

@@ -5,6 +5,9 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createRequire } from "node:module";
+
+import { config } from "@/proxy";
 import { updateSession } from "@/src/lib/supabase/proxy";
 
 type Cookie = { name: string; value: string };
@@ -35,6 +38,12 @@ vi.mock("@supabase/ssr", () => ({
     }),
   ),
 }));
+
+// Next compiles the matcher with its own bundled path-to-regexp, which ships no types.
+const nodeRequire = createRequire(import.meta.url);
+const { pathToRegexp } = nodeRequire("next/dist/compiled/path-to-regexp") as {
+  pathToRegexp: (pattern: string) => RegExp;
+};
 
 const request = (path: string) => new NextRequest(new URL(path, "http://localhost:3000"));
 
@@ -176,6 +185,45 @@ describe("proxy (PF-013)", () => {
       expect(await surfaceOf("/dashboard", "GET", "api-write")).toBe("page");
       expect(await surfaceOf("/api/projects", "GET", "page")).toBe("api-read");
       expect(await surfaceOf("/api/projects", "DELETE", "api-read")).toBe("api-write");
+    });
+
+    it("runs on /api and /dashboard whatever the last segment looks like, so the surface header is never the client's", () => {
+      const runs = (path: string) => config.matcher.some((m) => pathToRegexp(m).test(path));
+      // These end like a static image, so the first matcher entry skips them; the others must not.
+      for (const path of [
+        "/dashboard/projects/abc.png",
+        "/dashboard/x/y.ico",
+        "/api/projects/abc.png",
+        "/api/workspace/api-keys/abc.svg",
+        "/api/prds/x.jpeg",
+        "/dashboard",
+        "/api/projects",
+      ])
+        expect(runs(path), path).toBe(true);
+      // Real static assets are still skipped.
+      for (const path of [
+        "/logo.png",
+        "/favicon.ico",
+        "/_next/static/chunk.js",
+        "/images/hero.webp",
+      ])
+        expect(runs(path), path).toBe(false);
+    });
+
+    it("does not let a key plus a forged surface header open a dashboard path that ends in .png", async () => {
+      const forged = keyed("/dashboard/projects/abc.png", {
+        headers: { "x-pf-surface": "api-read" },
+      });
+      const res = await updateSession(forged);
+      expect(res.status).toBe(307);
+      expect(res.headers.get("location")).toContain("/login?next=");
+      // And signed in, the surface is still the proxy's, never the client's.
+      fake.signedIn = true;
+      const signedIn = keyed("/dashboard/projects/abc.png", {
+        headers: { "x-pf-surface": "api-write" },
+      });
+      await updateSession(signedIn);
+      expect(signedIn.headers.get("x-pf-surface")).toBe("page");
     });
   });
 });
