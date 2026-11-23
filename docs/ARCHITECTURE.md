@@ -153,7 +153,7 @@ Errors: `{ error: { code, message, details? } }`.
 - A key acts as the member who created it, so it runs through the same `actAs(user_id)` path and every RLS policy, role check and audit entry applies unchanged. Removing the member kills the key.
 - Enforcement is by HTTP method: `proxy.ts` stamps the request surface (`page` / `api-read` / `api-write`) into `x-pf-surface`; a `read` key is refused on `api-write`. The effective role is also the lower of the key's scope and the member's role, read per request. Detail in the ADR-036 follow-up.
 - No key can approve or confirm anything (CLAUDE.md §7.7): those routes return 403 whatever the owner's role. A key also can't create or revoke keys.
-- Keys expire (default 90 days, at most 366) and are revoked, never deleted. Create and revoke write `api_key.created` / `api_key.revoked` audit entries, never the secret. Managed at `/dashboard/settings/api-keys`; members see their own keys, owners and admins see the workspace's.
+- Keys expire (default 90 days, at most 366) and are revoked, never deleted. Create, revoke and a key's first use write `api_key.created` / `api_key.revoked` / `api_key.first_used` audit entries, never the secret. A key that fails before its secret matches gets one uniform 401; a revoked, expired or orphaned key says which. Managed at `/dashboard/settings/api-keys`; members see their own keys, owners and admins see the workspace's.
 
 ## Testing
 

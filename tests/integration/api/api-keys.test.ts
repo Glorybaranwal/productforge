@@ -29,6 +29,7 @@ import * as rejectStoryRoute from "@/app/api/stories/[id]/reject/route";
 import * as traceabilityCsvRoute from "@/app/api/projects/[id]/traceability/csv/route";
 import { setLLMClient } from "@/src/ai/llm-client";
 import { apiKeyRepository } from "@/src/modules/api-keys/repository";
+import { auditRepository } from "@/src/modules/audit/repository";
 import { projectThroughGate2 } from "@/tests/helpers/backlog";
 import { readState, transact } from "@/src/db/store";
 import { DEMO_USER, type Session } from "@/src/lib/auth";
@@ -377,6 +378,50 @@ describe("last use", () => {
   });
 });
 
+describe("first use", () => {
+  const firstUses = async (id: string) =>
+    (await readState()).auditLogs.filter(
+      (l) => l.action === "api_key.first_used" && l.entityId === id,
+    );
+
+  it("writes one audit entry, as the key's member, on the first use and none on the second", async () => {
+    const { key, plaintext } = await mintKey(null, { name: "first", scope: "read" });
+    expect(await firstUses(key.id)).toHaveLength(0);
+
+    expect((await withKey(plaintext, "GET", () => workspaceRoute.GET())).status).toBe(200);
+    const [entry, ...rest] = await firstUses(key.id);
+    expect(rest).toHaveLength(0);
+    expect(entry!.workspaceId).toBe(workspaceId);
+    expect(entry!.actorId).toBe(DEMO_USER.userId);
+    expect(entry!.actorName).toBe(`API key ${key.prefix}`);
+    expect(JSON.stringify(entry)).not.toContain(secretOf(plaintext));
+
+    expect((await withKey(plaintext, "GET", () => workspaceRoute.GET())).status).toBe(200);
+    expect(await firstUses(key.id)).toHaveLength(1);
+  });
+
+  it("is written even when the first use is a read key refused a write", async () => {
+    const { key, plaintext } = await mintKey(null, { name: "first refused", scope: "read" });
+    const res = await withKey(plaintext, "POST", () =>
+      keysRoute.POST(body("POST", { name: "x", scope: "read" })),
+    );
+    expect(res.status).toBe(403);
+    expect(await firstUses(key.id)).toHaveLength(1);
+  });
+
+  it("failing to write it never fails the request", async () => {
+    const { key, plaintext } = await mintKey(null, { name: "flaky audit", scope: "read" });
+    const insert = vi
+      .spyOn(auditRepository, "insert")
+      .mockRejectedValue(new Error("audit table down"));
+    const res = await withKey(plaintext, "GET", () => workspaceRoute.GET());
+    expect(insert).toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    insert.mockRestore();
+    expect(await firstUses(key.id)).toHaveLength(0);
+  });
+});
+
 describe("exports are reads (they may append an audit row)", () => {
   it("lets a read key GET and HEAD the PRD, backlog and traceability exports, and the audit row lands", async () => {
     const { projectId } = await projectThroughGate2();
@@ -471,42 +516,60 @@ describe("a key can't approve an epic by rejecting its last unapproved story", (
 });
 
 describe("a key that must not work", () => {
-  it("answers revoked, expired, removed-member, wrong-secret, unknown and malformed keys with the same 401", async () => {
-    const revoked = await mintKey(null, { name: "revoked", scope: "write" });
-    const expired = await mintKey(null, { name: "expired", scope: "write" });
-    const removed = await mintKey(DEV, { name: "removed", scope: "write" });
+  it("answers a caller who holds nothing (malformed, unknown prefix, wrong secret) with one byte-identical 401", async () => {
     const live = await mintKey(null, { name: "live", scope: "write" });
-
-    expect((await keyRoute.DELETE(plain("DELETE"), params(revoked.key.id))).status).toBe(200);
-    await transact((s) => {
-      s.apiKeys.find((k) => k.id === expired.key.id)!.expiresAt = new Date(
-        Date.now() - 1000,
-      ).toISOString();
-      s.workspaceMembers = s.workspaceMembers.filter((m) => m.userId !== DEV.userId);
-    });
-
     const wrongSecret =
       live.plaintext.slice(0, -3) + (live.plaintext.endsWith("AAA") ? "BBB" : "AAA");
     const unknownPrefix = live.plaintext.replace(
       live.key.prefix,
       live.key.prefix === "aaaaaaaa" ? "bbbbbbbb" : "aaaaaaaa",
     );
-    const attempts: [string, string | null][] = [
-      ["revoked", bearer(revoked.plaintext)],
-      ["expired", bearer(expired.plaintext)],
-      ["member removed", bearer(removed.plaintext)],
+    const attempts: [string, string][] = [
       ["wrong secret", bearer(wrongSecret)],
       ["unknown prefix", bearer(unknownPrefix)],
       ["malformed", "Bearer pf_live_nonsense"],
       ["truncated", bearer(live.plaintext.slice(0, 30))],
     ];
+    const texts: string[] = [];
     for (const [why, header] of attempts) {
-      const res = await withKey("", "GET", () => workspaceRoute.GET(), header!);
+      const res = await withKey("", "GET", () => workspaceRoute.GET(), header);
       expect(res.status, why).toBe(401);
-      expect(await res.json(), why).toEqual(SAME_401);
+      const text = await res.text();
+      expect(JSON.parse(text), why).toEqual(SAME_401);
+      texts.push(text);
     }
+    // The property a careless edit would break: nothing before the secret matches tells them apart.
+    expect(new Set(texts).size).toBe(1);
     // And the live key still works, so the refusals above weren't a blanket failure.
     expect((await withKey(live.plaintext, "GET", () => workspaceRoute.GET())).status).toBe(200);
+  });
+
+  it("says why a key that has proved its secret is refused: revoked, expired, member removed", async () => {
+    const revoked = await mintKey(null, { name: "revoked", scope: "write" });
+    const expired = await mintKey(null, { name: "expired", scope: "write" });
+    const removed = await mintKey(DEV, { name: "removed", scope: "write" });
+
+    expect((await keyRoute.DELETE(plain("DELETE"), params(revoked.key.id))).status).toBe(200);
+    const expiredAt = new Date(Date.now() - 2 * 864e5).toISOString();
+    await transact((s) => {
+      s.apiKeys.find((k) => k.id === expired.key.id)!.expiresAt = expiredAt;
+      s.workspaceMembers = s.workspaceMembers.filter((m) => m.userId !== DEV.userId);
+    });
+
+    const expected: [string, Created, string][] = [
+      ["revoked", revoked, "This API key was revoked."],
+      ["expired", expired, `This API key expired on ${expiredAt.slice(0, 10)}.`],
+      ["member removed", removed, "The member this key belongs to is no longer in this workspace."],
+    ];
+    const messages = new Set<string>();
+    for (const [why, created, message] of expected) {
+      const res = await withKey(created.plaintext, "GET", () => workspaceRoute.GET());
+      expect(res.status, why).toBe(401);
+      expect(await res.json(), why).toEqual({ error: { code: "UNAUTHORIZED", message } });
+      messages.add(message);
+    }
+    expect(messages.size).toBe(3);
+    for (const message of messages) expect(message).not.toBe(SAME_401.error.message);
   });
 
   it("never falls back to the browser session when a key is presented on /api", async () => {

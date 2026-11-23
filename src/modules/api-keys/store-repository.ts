@@ -99,6 +99,7 @@ export const storeApiKeys: ApiKeyRepository = {
           userId: k.userId,
           prefix: k.prefix,
           scope: k.scope,
+          lastUsedAt: k.lastUsedAt,
           expiresAt: k.expiresAt,
           revokedAt: k.revokedAt,
           secretHash: k.secretHash,

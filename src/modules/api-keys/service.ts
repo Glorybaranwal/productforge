@@ -144,7 +144,10 @@ export async function revokeApiKey(ctx: WorkspaceContext, id: string): Promise<A
   });
 }
 
-/** The one failure the caller ever sees: it never says which step failed. */
+/**
+ * What a caller who has not proved the key sees: malformed, unknown prefix and wrong secret all
+ * answer this, byte for byte, so nobody holding nothing can enumerate prefixes or probe the compare.
+ */
 const invalidKey = () => new AppError("UNAUTHORIZED", "Invalid API key");
 
 /** Burns the same comparison a real key would, so an unknown prefix isn't faster than a wrong secret. */
@@ -153,14 +156,20 @@ const NO_HASH = "0".repeat(64);
 /**
  * Authenticates an `Authorization` header as an API key and returns the context it acts in (ADR-036).
  *
- * Every failure is the same UNAUTHORIZED with the same message; the reason goes to the log only, with
- * the key's prefix and never anything secret. Steps, in order:
+ * Every failure is UNAUTHORIZED, and the reason is also logged with the key's prefix, never anything
+ * secret. Before the secret matches (malformed, unknown prefix, wrong secret) the message is the same
+ * for all three, so a caller holding nothing learns nothing. After it matches the caller has proved
+ * they hold the key, so revoked, expired and removed-member each say so: naming the reason leaks
+ * nothing they could not already work out, and "expired" is the failure a real user hits first.
+ * Steps, in order:
  *   1. the header parses as a key; 2. a key with that prefix exists; 3. the secret matches its hash
  *   (constant time); 4. its issuer's membership is read (as that member, so RLS applies), *before*
  *   the next checks, so that revoked, expired and removed cost the same and latency can't tell a
  *   holder of the secret which it was; 5. it isn't revoked or expired; 6. the issuer is still a
- *   member (removing them kills the key); 7. `last_used_at` is touched, a failure there is logged
- *   and ignored, and it happens before step 8 so a refused use still leaves a trace; 8. a `read`
+ *   member (removing them kills the key); 7. `last_used_at` is touched and, when it was null, the
+ *   key's first use is audited as that member (reads are not otherwise audited, so this is the one
+ *   record that a key went live); a failure of either is logged and ignored, and both happen before
+ *   step 8 so a refused use still leaves a trace; 8. a `read`
  *   key on a mutating request is refused (403: the caller has proven the whole key by now, so this
  *   reveals nothing); 9. the context is built with the lower of the scope's and the member's role
  *   and `viaApiKey` set.
@@ -176,9 +185,10 @@ export async function contextForApiKey(
     logger.info("API key rejected", { reason: "malformed" });
     throw invalidKey();
   }
-  const reject = (reason: string) => {
+  /** `message` is given only for failures after the secret matched; without it, the uniform 401. */
+  const reject = (reason: string, message?: string) => {
     logger.info("API key rejected", { reason, prefix: parsed.prefix });
-    return invalidKey();
+    return message ? new AppError("UNAUTHORIZED", message) : invalidKey();
   };
 
   const row = await apiKeyRepository.findByPrefix(parsed.prefix);
@@ -198,9 +208,22 @@ export async function contextForApiKey(
     const workspace = await workspaceRepository.findById(scope, row.workspaceId);
     return workspace ? { member, workspace } : null;
   });
-  if (row.revokedAt) throw reject("revoked");
-  if (new Date(row.expiresAt).getTime() <= now.getTime()) throw reject("expired");
-  if (!found) throw reject("not a member");
+  // The secret matched, so the caller holds the key: these may say which check failed.
+  if (row.revokedAt) throw reject("revoked", "This API key was revoked.");
+  if (new Date(row.expiresAt).getTime() <= now.getTime())
+    throw reject(
+      "expired",
+      `This API key expired on ${new Date(row.expiresAt).toISOString().slice(0, 10)}.`,
+    );
+  if (!found)
+    throw reject("not a member", "The member this key belongs to is no longer in this workspace.");
+
+  const ctx: WorkspaceContext = {
+    session,
+    workspace: found.workspace,
+    role: effectiveRole(row.scope, found.member.role),
+    viaApiKey: true,
+  };
 
   try {
     await apiKeyRepository.touchLastUsed(row.id, now.toISOString());
@@ -211,15 +234,31 @@ export async function contextForApiKey(
     });
   }
 
+  // First use: `lastUsedAt` is overwritten by the next use, so this is the only lasting record. Through
+  // the key's own context (RLS, and the actor is the member), best-effort like the touch above.
+  if (row.lastUsedAt === null) {
+    try {
+      await recordAudit(ctx, {
+        entityType: "api_key",
+        entityId: row.id,
+        action: "api_key.first_used",
+        diff: {
+          usedAt: { from: null, to: now.toISOString() },
+          prefix: { from: null, to: row.prefix },
+        },
+      });
+    } catch (err) {
+      logger.warn("Couldn't record API key first use", {
+        prefix: row.prefix,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   if (opts.mutating && row.scope === "read") {
     logger.info("API key refused", { reason: "read-only key on a write", prefix: row.prefix });
     throw new AppError("FORBIDDEN", "This API key is read-only");
   }
 
-  return {
-    session,
-    workspace: found.workspace,
-    role: effectiveRole(row.scope, found.member.role),
-    viaApiKey: true,
-  };
+  return ctx;
 }

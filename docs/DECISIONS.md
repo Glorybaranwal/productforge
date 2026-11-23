@@ -909,3 +909,14 @@ by the table at 366 days, defaulted by the service to 90; the service validates 
 bad date is a `VALIDATION_ERROR` rather than a raw Postgres `23514` the error layer cannot map. The
 session a key produces is named `API key <prefix>`, because the type that carries the hash deliberately
 omits the key's name and the prefix is the log-correlation handle anyway.
+
+**Final review: what a refused key is told, and first use.** Before the secret matches (malformed, unknown
+prefix, wrong secret) a key gets one byte-identical `401 Invalid API key`, so someone holding nothing
+cannot enumerate prefixes or probe the compare. After it matches the caller has proved they hold the key,
+so revoked, expired and removed-member each say so ("This API key was revoked.", "...expired on
+YYYY-MM-DD.", "The member this key belongs to is no longer in this workspace."), still `UNAUTHORIZED`;
+this is the same reasoning that already gives a read key on a write a distinguishable 403, and it fixes the
+likeliest real failure, a key hitting its 90-day expiry. Reads are not audited, so a key's first use writes
+an `api_key.first_used` entry (best-effort, through the key's own context, never failing the request);
+`last_used_at` alone is overwritten by the next use. Two first uses racing may each write one entry.
+

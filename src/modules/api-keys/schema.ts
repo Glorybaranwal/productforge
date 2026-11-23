@@ -42,7 +42,7 @@ export type NewApiKey = Omit<ApiKey, "secretHash"> & { secretHash: string };
  */
 export type ApiKeyWithSecret = Pick<
   ApiKey,
-  "id" | "workspaceId" | "userId" | "prefix" | "scope" | "expiresAt" | "revokedAt"
+  "id" | "workspaceId" | "userId" | "prefix" | "scope" | "lastUsedAt" | "expiresAt" | "revokedAt"
 > & { secretHash: string };
 
 /**

@@ -112,6 +112,7 @@ export const pgApiKeys: ApiKeyRepository = {
         prefix: apiKeys.prefix,
         scope: apiKeys.scope,
         secretHash: apiKeys.secretHash,
+        lastUsedAt: apiKeys.lastUsedAt,
         expiresAt: apiKeys.expiresAt,
         revokedAt: apiKeys.revokedAt,
       })
@@ -126,6 +127,7 @@ export const pgApiKeys: ApiKeyRepository = {
       prefix: row.prefix,
       scope: ApiKeyScope.parse(row.scope),
       secretHash: row.secretHash,
+      lastUsedAt: iso(row.lastUsedAt),
       expiresAt: row.expiresAt.toISOString(),
       revokedAt: iso(row.revokedAt),
     };
