@@ -306,6 +306,8 @@ describe("the verify path (admin client)", () => {
       prefix: key.prefix,
       scope: "read",
       secretHash: key.secretHash,
+      // findByPrefix selects lastUsedAt too, so the verify path can tell a first use (PF-083).
+      lastUsedAt: null,
       expiresAt: key.expiresAt,
       revokedAt: "2026-11-01T00:00:00.000Z",
     });
