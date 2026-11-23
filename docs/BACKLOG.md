@@ -473,7 +473,14 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - *2026-11-23:* verify path and enforcement done (`src/lib/api-key.ts`, `src/lib/request-key.ts`,
     `src/modules/api-keys/service.ts`, the gate, `currentContext`, both routes). Enforcement is by HTTP
     method, not by role: see the ADR-036 follow-up — member writes have no role check, so the ceiling alone
-    could not hold a `read` key to reads. Left: the settings screen (Task 3).
+    could not hold a `read` key to reads.
+  - *2026-11-23:* **done.** Settings screen, audit trail and architecture note finished; whole-branch review
+    READY WITH FIXES (0 Critical), all three Important fixed: the route matrix now calls all 35 mutating routes
+    with a `read` key and asserts 403 with the scope's own message; first use writes an `api_key.first_used`
+    audit row (reads are not audited, so `last_used_at` alone left no trace a key had gone live); and a refused
+    key is told *why* once it has proved possession of the secret, while the three pre-authentication failures
+    stay byte-identical. See the two ADR-036 follow-ups. **Not run anywhere:** every test on the branch is
+    unexecuted (vitest cannot start in Claude's VM) and nobody has seen the settings page render.
   - `src/modules/api-keys/{schema,service,repository,store-repository,pg-repository}.ts` in the usual shape.
   - `src/lib/auth-key.ts`: `Authorization: Bearer pf_…` → prefix lookup → constant-time hash compare → expiry and
     revocation check → membership re-read → context via the existing `actAs(user_id)` path, with the key's
@@ -487,6 +494,33 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
     approve route, after revocation, after expiry, and once its member is removed from the workspace; the route
     matrix test calls every write route with a `read` key and gets 403; no test or log line ever contains a
     plaintext key.
+
+- [ ] **PF-086 — PF-083 follow-ups from the final review** · Module 0 (platform) · branch `m0-api-key-polish` ·
+      Depends on: PF-083
+  - The eleven minors the whole-branch review triaged to backlog, none of which block the merge:
+    column-level `SELECT` grant so `secret_hash` never rides along on a `select *` (needs
+    `pg-repository.ts`'s three `select *` calls turned into explicit column lists first); the PGlite suite's
+    exact-count assertions and shared-database ordering; `expectRlsRefusal` accepting any 42501 so a policy
+    denial and a missing column privilege look alike; the non-atomic `refreshEpics` backstop; the 490-line
+    `api-keys.test.ts`; four Task 3 test gaps (revoked rows keeping no Revoke button, the plaintext on a second
+    create and on unmount, the empty-state wording); client-clock expiry refusing 366 days when the clock runs
+    ahead; `ownerLabel`'s dead branch; and date hydration.
+  - **A key shares its owner's 5-open-stream cap** on `GET /api/projects/:id/runs/live`, so a busy key can lock
+    the human out of their own dashboard. Fold into PF-084's counters rather than fixing separately.
+  - **Member names:** an owner or admin sees another member's key as `Member <first 8 of userId>`, because no
+    member directory exists. Needs a backend lookup before the UI can show a name.
+  - **Done when:** each item is done or has a reason noted here.
+
+- [ ] **PF-087 — Let the Jira sync use a read key** · Module 5 (sprint & export) · branch `m5-export-read-key` ·
+      Depends on: PF-083
+  - ADR-036 names the Jira sync as a motivating case for API keys, but it cannot use a `read` key: generating
+    the export is `POST /api/projects/:id/exports/jira` (it takes options in a body), and enforcement is by HTTP
+    method, so a POST demands `write`. Generating an export file reads data and changes none.
+  - Two routes out, neither free: exempt that path from the method rule, which weakens the one invariant all
+    enforcement rests on; or offer a GET form that takes its options as query parameters, leaving the POST alone.
+  - Until then the sync runs with a `write` key — over-privileged for what it does, though still capped at its
+    owner's role and still unable to approve anything.
+  - **Done when:** the Jira export can be driven by a `read` key, or this is closed with the reason recorded.
 
 - [ ] **PF-084 — HTTP rate limits and `Retry-After`** · Module 0 (platform) · branch `m0-rate-limit` ·
       Depends on: PF-083
