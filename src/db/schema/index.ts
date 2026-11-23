@@ -7,6 +7,7 @@ export * from "./changes";
 export * from "./planning";
 export * from "./prds";
 export * from "./projects";
+export * from "./rate-limits";
 export * from "./requirements";
 export * from "./sources";
 export * from "./workspaces";
