@@ -111,6 +111,8 @@ const FIXTURES: Record<string, unknown> = {
     includeTasks: true,
     subtaskType: "Sub-task",
   },
+  "POST /api/workspace/api-keys": { name: "Matrix key", scope: "read" },
+  "DELETE /api/workspace/api-keys/[id]": undefined,
 };
 
 const call = (route: Route, params: Record<string, string>) => {
@@ -145,9 +147,10 @@ async function seedWorkspaceA(routes: Route[]) {
     "agent-runs": discovery.latestRun.id as string,
     prds: prd.versions[0].id as string,
     stories: backlog.stories[0].id as string,
-    // No change request or sprint is created here: unknown ids must answer the same way.
+    // No change request, sprint or API key is created here: unknown ids must answer the same way.
     changes: crypto.randomUUID(),
     sprints: crypto.randomUUID(),
+    workspace: crypto.randomUUID(),
   };
 }
 
@@ -185,6 +188,9 @@ const MEMBER_WRITES = [
   "POST /api/prds/[id]/new-version",
   "PATCH /api/stories/[id]",
   "POST /api/projects/[id]/exports/jira",
+  // Any member may mint a key for themselves and revoke their own (PF-083, ADR-036).
+  "POST /api/workspace/api-keys",
+  "DELETE /api/workspace/api-keys/[id]",
 ];
 
 const setRole = (role: Role) =>

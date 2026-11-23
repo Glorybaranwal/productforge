@@ -27,6 +27,22 @@ describe("redact (ADR-035)", () => {
     expect(out).toEqual({ note: "key [redacted] and [redacted] and [redacted]" });
   });
 
+  it("masks a ProductForge API key wherever it appears (PF-083)", () => {
+    const key = "pf_live_abcdefgh_" + "Zx9_-".repeat(8) + "Zx9";
+    const out = redact({
+      note: `sent ${key} to the server`,
+      header: `Bearer ${key}`,
+      ok: "pf_live",
+    });
+    expect(JSON.stringify(out)).not.toContain("Zx9_-Zx9_-");
+    expect(out).toEqual({
+      note: "sent [redacted] to the server",
+      header: "[redacted]",
+      ok: "pf_live",
+    });
+    expect(redact({ text: "pf_test_abcdefgh_" + "A".repeat(43) })).toEqual({ text: "[redacted]" });
+  });
+
   it("cuts long text such as a pasted document", () => {
     const text = "x".repeat(MAX_LOGGED_STRING + 50);
     expect(redact(text)).toBe(`${"x".repeat(MAX_LOGGED_STRING)}…[+50 chars]`);

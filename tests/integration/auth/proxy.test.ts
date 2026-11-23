@@ -120,4 +120,62 @@ describe("proxy (PF-013)", () => {
     expect(res.headers.get("x-middleware-next")).toBe("1");
     expect(fake.createServerClient).not.toHaveBeenCalled();
   });
+
+  describe("API keys (PF-083)", () => {
+    const KEY = `Bearer pf_live_abcdefgh_${"A".repeat(43)}`;
+    const keyed = (
+      path: string,
+      init: { method?: string; headers?: Record<string, string> } = {},
+    ) =>
+      new NextRequest(new URL(path, "http://localhost:3000"), {
+        ...init,
+        headers: { authorization: KEY, ...init.headers },
+      });
+
+    it("lets a request to /api through on a key alone, with no session and no lookup", async () => {
+      const res = await updateSession(keyed("/api/projects"));
+      expect(res.status).toBe(200);
+      expect(res.headers.get("location")).toBeNull();
+    });
+
+    it("never lets a key open a dashboard page", async () => {
+      for (const path of ["/dashboard", "/dashboard/projects/p1/prd"]) {
+        const res = await updateSession(keyed(path));
+        expect(res.status).toBe(307);
+        expect(res.headers.get("location")).toContain("/login?next=");
+      }
+    });
+
+    it("still answers 401 to /api with another kind of bearer token or a lookalike header", async () => {
+      for (const authorization of [
+        "Bearer eyJhbGciOiJIUzI1NiJ9.e30.abc",
+        "Basic abc",
+        "pf_live_x",
+      ]) {
+        const res = await updateSession(
+          new NextRequest(new URL("/api/projects", "http://localhost:3000"), {
+            headers: { authorization },
+          }),
+        );
+        expect(res.status).toBe(401);
+      }
+    });
+
+    it("stamps every request with its surface, overwriting anything the client sent", async () => {
+      const surfaceOf = async (path: string, method: string, sent?: string) => {
+        const req = keyed(path, { method, headers: sent ? { "x-pf-surface": sent } : {} });
+        fake.signedIn = true; // so a /dashboard request gets past the gate and is forwarded
+        await updateSession(req);
+        return req.headers.get("x-pf-surface");
+      };
+      expect(await surfaceOf("/api/projects", "GET")).toBe("api-read");
+      expect(await surfaceOf("/api/projects", "POST")).toBe("api-write");
+      expect(await surfaceOf("/api/projects/p1", "DELETE")).toBe("api-write");
+      expect(await surfaceOf("/dashboard", "GET")).toBe("page");
+      // A client claiming a different surface is overwritten, not believed.
+      expect(await surfaceOf("/dashboard", "GET", "api-write")).toBe("page");
+      expect(await surfaceOf("/api/projects", "GET", "page")).toBe("api-read");
+      expect(await surfaceOf("/api/projects", "DELETE", "api-read")).toBe("api-write");
+    });
+  });
 });
