@@ -28,7 +28,10 @@ export const GET = withErrors(async (request: Request, { params }: Context) => {
   );
   const user = ctx.session.userId;
   if ((open.get(user) ?? 0) >= MAX_STREAMS_PER_USER)
-    throw new AppError("RATE_LIMITED", "Too many live views open. Close a tab and try again.");
+    throw new AppError("RATE_LIMITED", "Too many live views open. Close a tab and try again.", {
+      // The cap clears the moment a tab closes, so a short wait is right.
+      retryAfterSeconds: 5,
+    });
   open.set(user, (open.get(user) ?? 0) + 1);
   let released = false;
   const release = () => {

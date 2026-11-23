@@ -3,12 +3,15 @@
  * Postgres so it holds across Vercel instances (ADR-035 proved the pattern for AI runs). The window
  * arithmetic is pure and separate from the database so it is unit-tested without either.
  */
+import { createHash } from "node:crypto";
+
 import { sql } from "drizzle-orm";
 
 import { adminDb } from "@/src/db/client";
 import { rateLimitHits } from "@/src/db/schema";
 
 import { AppError } from "./errors";
+import { logger } from "./logger";
 
 export type Bucket = "upload" | "export" | "generate" | "write" | "read";
 
@@ -36,10 +39,11 @@ const ENV_NAMES: Record<Bucket, string> = {
 
 const BUCKETS = Object.keys(DEFAULT_LIMITS) as Bucket[];
 
-/** A positive whole number, else the fallback (a typo in the env must not disable a limit). */
+/** Plain decimal digits that make a positive safe integer, else the fallback (a typo must not disable a limit). */
 const positiveInt = (value: string | undefined, fallback: number) => {
+  if (!value || !/^\d+$/.test(value)) return fallback;
   const n = Number(value);
-  return value && Number.isInteger(n) && n > 0 ? n : fallback;
+  return Number.isSafeInteger(n) && n > 0 ? n : fallback;
 };
 
 export function limitFor(bucket: Bucket, env: Env = process.env): number {
@@ -55,6 +59,25 @@ export const LIMITS = Object.fromEntries(
 export function windowStart(now: Date, seconds = WINDOW_SECONDS): Date {
   const ms = seconds * 1000;
   return new Date(Math.floor(now.getTime() / ms) * ms);
+}
+
+/**
+ * Longest the counter may delay a request. A hung counter query must not add the pool's 10 s connect
+ * timeout to every API request: past this the call fails open (see `checkRateLimit`).
+ */
+export const COUNTER_TIMEOUT_MS = 2000;
+
+/** What a log line may say about a principal: its kind and a short hash, never the id itself. */
+const describePrincipal = (principal: string) =>
+  `${principal.split(":")[0]}:${createHash("sha256").update(principal).digest("hex").slice(0, 8)}`;
+
+/** Rejects after `ms`; the query behind it is abandoned, not cancelled. */
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`counter timed out after ${ms} ms`)), ms);
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
 }
 
 /** Whole seconds until the window that began at `start` ends; at least 1, so a client always waits. */
@@ -75,6 +98,12 @@ export function retryAfterSeconds(now: Date, start: Date, seconds = WINDOW_SECON
  * of them can both read 9, both decide 9 is under a limit of 10, and both proceed. The upsert takes a
  * row lock on the counter, so concurrent calls are serialized and each gets its own new count back.
  * A refused request still counts as a hit, which is what keeps a hammering client refused.
+ *
+ * Fails OPEN (Global Constraint 3): when the counter itself fails (no DATABASE_URL, a pool error, a
+ * timeout) the request is let through and the failure is logged at error level, because a broken
+ * counter must not take the API down and the data layer shares this database anyway. Only the
+ * database call is inside the `try`, so the deliberate RATE_LIMITED below is never swallowed. A caller
+ * must therefore NOT wrap this in its own try/catch.
  */
 export async function checkRateLimit(
   principal: string,
@@ -82,17 +111,38 @@ export async function checkRateLimit(
   now: Date = new Date(),
 ): Promise<void> {
   const start = windowStart(now);
-  const [row] = await adminDb()
-    .insert(rateLimitHits)
-    .values({ principal, bucket, windowStart: start, hits: 1 })
-    .onConflictDoUpdate({
-      target: [rateLimitHits.principal, rateLimitHits.bucket, rateLimitHits.windowStart],
-      set: { hits: sql`${rateLimitHits.hits} + 1` },
-    })
-    .returning({ hits: rateLimitHits.hits });
+  let hits: number | undefined;
+  try {
+    const [row] = await withTimeout(
+      adminDb()
+        .insert(rateLimitHits)
+        .values({ principal, bucket, windowStart: start, hits: 1 })
+        .onConflictDoUpdate({
+          target: [rateLimitHits.principal, rateLimitHits.bucket, rateLimitHits.windowStart],
+          set: { hits: sql`${rateLimitHits.hits} + 1` },
+        })
+        .returning({ hits: rateLimitHits.hits }),
+      COUNTER_TIMEOUT_MS,
+    );
+    hits = row?.hits;
+  } catch (err) {
+    logger.error("Rate limit counter failed; request not metered", {
+      bucket,
+      principal: describePrincipal(principal),
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  if (hits === undefined) {
+    logger.error("Rate limit counter returned no row; request not metered", {
+      bucket,
+      principal: describePrincipal(principal),
+    });
+    return;
+  }
 
   const limit = limitFor(bucket);
-  if (row && row.hits > limit) {
+  if (hits > limit) {
     throw new AppError("RATE_LIMITED", "Too many requests. Wait a moment and try again.", {
       retryAfterSeconds: retryAfterSeconds(now, start),
       limit,

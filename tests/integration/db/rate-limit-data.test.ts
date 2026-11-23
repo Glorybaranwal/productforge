@@ -4,12 +4,13 @@
  */
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/src/db/schema";
 import { rateLimitHits } from "@/src/db/schema";
 import { AppError } from "@/src/lib/errors";
-import { checkRateLimit } from "@/src/lib/rate-limit";
+import { logger } from "@/src/lib/logger";
+import { checkRateLimit, COUNTER_TIMEOUT_MS } from "@/src/lib/rate-limit";
 
 import { createRlsDb, expectPgCode, type RlsHarness, USERS } from "./rls-harness";
 
@@ -114,6 +115,71 @@ describe("checkRateLimit", () => {
     await expect(checkRateLimit(user, "upload", T0)).rejects.toMatchObject({
       code: "RATE_LIMITED",
     });
+    // One row, whose count is the total across both contexts, read through the other client.
+    const rows = await other.select().from(rateLimitHits);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.hits).toBe(12);
+  });
+});
+
+describe("checkRateLimit when the counter fails (fails open)", () => {
+  const broken = (err: unknown) => ({
+    insert: () => {
+      throw err;
+    },
+  });
+  const hanging = {
+    insert: () => ({
+      values: () => ({
+        onConflictDoUpdate: () => ({ returning: () => new Promise<never>(() => {}) }),
+      }),
+    }),
+  };
+  const noRow = {
+    insert: () => ({
+      values: () => ({ onConflictDoUpdate: () => ({ returning: async () => [] }) }),
+    }),
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("lets the request through and logs when the database call throws", async () => {
+    const log = vi.spyOn(logger, "error").mockImplementation(() => {});
+    holder.db = broken(new Error("DATABASE_URL isn't set"));
+    await expect(checkRateLimit(user, "upload", T0)).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledOnce();
+    const [message, meta] = log.mock.calls[0] ?? [];
+    expect(message).toMatch(/not metered/);
+    // The raw principal (it holds a user id) is never logged.
+    expect(JSON.stringify(meta)).not.toContain(USERS.ana);
+    expect(meta).toMatchObject({ bucket: "upload" });
+  });
+
+  it("lets the request through when the counter hangs past the timeout", async () => {
+    vi.useFakeTimers();
+    const log = vi.spyOn(logger, "error").mockImplementation(() => {});
+    holder.db = hanging;
+    const call = checkRateLimit(user, "upload", T0);
+    await vi.advanceTimersByTimeAsync(COUNTER_TIMEOUT_MS);
+    await expect(call).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledOnce();
+  });
+
+  it("lets the request through and logs when no row comes back", async () => {
+    const log = vi.spyOn(logger, "error").mockImplementation(() => {});
+    holder.db = noRow;
+    await expect(checkRateLimit(user, "upload", T0)).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledOnce();
+  });
+
+  it("still refuses with RATE_LIMITED when the counter works and the window is full", async () => {
+    const log = vi.spyOn(logger, "error").mockImplementation(() => {});
+    const { refused } = await burst(user, "upload", 11);
+    expect(refused?.code).toBe("RATE_LIMITED");
+    expect(log).not.toHaveBeenCalled();
   });
 });
 

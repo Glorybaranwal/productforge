@@ -32,6 +32,7 @@ export function usageWindow(now: Date) {
 export function budgetError(
   usage: RunUsage,
   limits: ReturnType<typeof budgetLimits>,
+  now: Date = new Date(),
 ): AppError | null {
   if (usage.userRuns >= limits.runsPerMinute)
     return new AppError(
@@ -45,7 +46,15 @@ export function budgetError(
     return new AppError(
       "RATE_LIMITED",
       "This workspace has used its AI budget for the month. It resets on the 1st (UTC); an owner can raise it.",
-      { limit: limits.monthlyTokens, used: usage.workspaceTokens },
+      {
+        limit: limits.monthlyTokens,
+        used: usage.workspaceTokens,
+        // The budget resets at the start of next month (UTC), so a client should wait until then.
+        // Always >= 1: `now` is before the first of next month by definition.
+        retryAfterSeconds: Math.ceil(
+          (Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1) - now.getTime()) / 1000,
+        ),
+      },
     );
   return null;
 }
@@ -53,6 +62,6 @@ export function budgetError(
 /** Throws RATE_LIMITED (429) before a run starts when the user or the workspace is over budget. */
 export async function checkRunBudget(ctx: WorkspaceContext, now = new Date()): Promise<void> {
   const usage = await agentRunRepository.usage(ctx, usageWindow(now));
-  const error = budgetError(usage, budgetLimits());
+  const error = budgetError(usage, budgetLimits(), now);
   if (error) throw error;
 }

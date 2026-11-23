@@ -93,9 +93,12 @@ function retryAfterOf(err: unknown): number {
     typeof details === "object" && details !== null
       ? (details as { retryAfterSeconds?: unknown }).retryAfterSeconds
       : undefined;
-  return typeof seconds === "number" && Number.isInteger(seconds) && seconds > 0
-    ? seconds
-    : DEFAULT_RETRY_AFTER_SECONDS;
+  if (typeof seconds === "number" && Number.isInteger(seconds) && seconds > 0) return seconds;
+  // A producer that says nothing is a guess worth seeing; one that says something unusable is a bug.
+  logger.warn("RATE_LIMITED without a usable retryAfterSeconds; sending the default", {
+    retryAfterSeconds: seconds === undefined ? "missing" : String(seconds),
+  });
+  return DEFAULT_RETRY_AFTER_SECONDS;
 }
 
 export function errorResponse(err: unknown): Response {

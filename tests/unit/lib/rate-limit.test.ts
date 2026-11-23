@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { logger } from "@/src/lib/logger";
 
 import { AppError, errorResponse } from "@/src/lib/errors";
 import {
@@ -24,9 +26,15 @@ describe("windowStart", () => {
   });
 
   it("honours a different window length", () => {
-    expect(windowStart(new Date("2026-11-23T10:15:42Z"), 300).toISOString()).toBe(
-      "2026-11-23T10:15:00.000Z",
+    // 45 s windows from the epoch: 10:15:00 is 37_800 s in, so 10:15:50 is in the window starting at
+    // 10:15:45, whereas a 60 s window would floor it to 10:15:00. An implementation that ignored
+    // `seconds` would fail this.
+    expect(windowStart(new Date("2026-11-23T10:15:50Z"), 45).toISOString()).not.toBe(
+      windowStart(new Date("2026-11-23T10:15:50Z")).toISOString(),
     );
+    const start = windowStart(new Date("2026-11-23T10:15:50Z"), 45);
+    expect(start.getTime() % 45_000).toBe(0);
+    expect(start.getTime()).toBeLessThanOrEqual(new Date("2026-11-23T10:15:50Z").getTime());
   });
 });
 
@@ -35,6 +43,11 @@ describe("retryAfterSeconds", () => {
 
   it("is the whole window at its start", () => {
     expect(retryAfterSeconds(start, start)).toBe(60);
+  });
+
+  it("honours a different window length", () => {
+    expect(retryAfterSeconds(start, start, 45)).toBe(45);
+    expect(retryAfterSeconds(new Date("2026-11-23T10:15:40.000Z"), start, 45)).toBe(5);
   });
 
   it("rounds a part second up, and is never below 1 at the end of the window", () => {
@@ -59,9 +72,12 @@ describe("limitFor", () => {
     expect(limitFor("read", env)).toBe(240);
   });
 
-  it.each(["abc", "0", "-5", "2.5", ""])("falls back to the default for the bad value %j", (v) => {
-    expect(limitFor("write", { RATE_LIMIT_WRITE_PER_MIN: v })).toBe(60);
-  });
+  it.each(["abc", "0", "-5", "2.5", "", "1e21", "0x10", " 5", "9007199254740993"])(
+    "falls back to the default for the bad value %j",
+    (v) => {
+      expect(limitFor("write", { RATE_LIMIT_WRITE_PER_MIN: v })).toBe(60);
+    },
+  );
 
   it("exposes every bucket on LIMITS", () => {
     expect(Object.keys(LIMITS).sort()).toEqual(["export", "generate", "read", "upload", "write"]);
@@ -69,6 +85,8 @@ describe("limitFor", () => {
 });
 
 describe("errorResponse Retry-After", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("sets the header from the error's details", async () => {
     const res = errorResponse(new AppError("RATE_LIMITED", "Slow down", { retryAfterSeconds: 17 }));
     expect(res.status).toBe(429);
@@ -87,9 +105,11 @@ describe("errorResponse Retry-After", () => {
     ).toBe("60");
   });
 
-  it("ignores a nonsense retryAfterSeconds", () => {
+  it("ignores a nonsense retryAfterSeconds, and says so", () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
     const res = errorResponse(new AppError("RATE_LIMITED", "x", { retryAfterSeconds: -3 }));
     expect(res.headers.get("Retry-After")).toBe("60");
+    expect(warn).toHaveBeenCalledOnce();
   });
 
   it("is absent on every other error", () => {
