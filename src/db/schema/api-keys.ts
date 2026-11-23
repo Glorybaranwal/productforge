@@ -3,6 +3,10 @@
  * created it, so it is bound to `(workspace_id, user_id)` and dies with that membership. Only a
  * SHA-256 hash and a short non-secret prefix are stored (never the plaintext).
  *
+ * The composite foreign key to `workspace_members` is load-bearing, not redundant with the plain
+ * `workspace_id` one: it is what makes the select policy's `isMe(user_id)` branch sound, because it
+ * guarantees the row's workspace is one its user belongs to. Do not drop it.
+ *
  * RLS: a member sees their own keys, owners and admins see the workspace's. A key is inserted for
  * yourself only. The only updates are revoking and `last_used_at` (the column grants in migration
  * `0010_api_keys.sql` pin that down), and nobody deletes a key: they are revoked, so the audit trail
@@ -24,13 +28,15 @@ import { authenticatedRole, authUsers } from "drizzle-orm/supabase";
 
 import { createdAt } from "./columns";
 import { ADMINS, isMe, memberOf, roleIn } from "./policies";
-import { workspaceMembers } from "./workspaces";
+import { workspaceMembers, workspaces } from "./workspaces";
 
 export const apiKeys = pgTable(
   "api_keys",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    workspaceId: uuid("workspace_id").notNull(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
       .references(() => authUsers.id, { onDelete: "cascade" }),
@@ -54,6 +60,13 @@ export const apiKeys = pgTable(
     uniqueIndex("api_keys_prefix_key").on(t.prefix),
     index("api_keys_member_idx").on(t.workspaceId, t.userId),
     check("api_keys_scope", sql`${t.scope} in ('read', 'write')`),
+    // Defence in depth (the Data API is off, ADR-024): the table refuses malformed rows itself.
+    check(
+      "api_keys_expiry_window",
+      sql`${t.expiresAt} > ${t.createdAt} and ${t.expiresAt} <= ${t.createdAt} + interval '366 days'`,
+    ),
+    check("api_keys_prefix_format", sql`${t.prefix} ~ '^[a-z2-7]{8}$'`),
+    check("api_keys_secret_hash_format", sql`${t.secretHash} ~ '^[0-9a-f]{64}$'`),
     pgPolicy("api_keys_select_own_or_admin", {
       for: "select",
       to: authenticatedRole,

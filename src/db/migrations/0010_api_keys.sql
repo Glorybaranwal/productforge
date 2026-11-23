@@ -1,5 +1,5 @@
 -- PF-083 / ADR-036: workspace API keys. Hand-written (drizzle-kit could not run); the hand edits are
--- the grants at the end: nobody deletes a key, and only revoked_at / last_used_at can be updated.
+-- the grants at the end (hand edits): nobody deletes a key, and only revoked_at / last_used_at can be updated.
 CREATE TABLE "api_keys" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
@@ -12,10 +12,14 @@ CREATE TABLE "api_keys" (
 	"last_used_at" timestamp with time zone,
 	"expires_at" timestamp with time zone NOT NULL,
 	"revoked_at" timestamp with time zone,
-	CONSTRAINT "api_keys_scope" CHECK ("api_keys"."scope" in ('read', 'write'))
+	CONSTRAINT "api_keys_scope" CHECK ("api_keys"."scope" in ('read', 'write')),
+	CONSTRAINT "api_keys_expiry_window" CHECK ("api_keys"."expires_at" > "api_keys"."created_at" and "api_keys"."expires_at" <= "api_keys"."created_at" + interval '366 days'),
+	CONSTRAINT "api_keys_prefix_format" CHECK ("api_keys"."prefix" ~ '^[a-z2-7]{8}$'),
+	CONSTRAINT "api_keys_secret_hash_format" CHECK ("api_keys"."secret_hash" ~ '^[0-9a-f]{64}$')
 );
 --> statement-breakpoint
 ALTER TABLE "api_keys" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_member_fk" FOREIGN KEY ("workspace_id","user_id") REFERENCES "public"."workspace_members"("workspace_id","user_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "api_keys_prefix_key" ON "api_keys" USING btree ("prefix");--> statement-breakpoint
@@ -26,4 +30,5 @@ CREATE POLICY "api_keys_update_own_or_admin" ON "api_keys" AS PERMISSIVE FOR UPD
 REVOKE DELETE ON TABLE "public"."api_keys" FROM "authenticated";--> statement-breakpoint
 REVOKE UPDATE ON TABLE "public"."api_keys" FROM "authenticated";--> statement-breakpoint
 GRANT UPDATE ("revoked_at", "last_used_at") ON TABLE "public"."api_keys" TO "authenticated";--> statement-breakpoint
+REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLE "public"."api_keys" FROM "authenticated";--> statement-breakpoint
 REVOKE ALL ON TABLE "public"."api_keys" FROM "anon";

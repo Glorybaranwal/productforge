@@ -20,10 +20,16 @@ export const ApiKey = z.object({
   expiresAt: z.iso.datetime(),
   revokedAt: z.iso.datetime().nullable(),
 });
-export type ApiKey = z.infer<typeof ApiKey>;
+/**
+ * `secretHash?: never` makes the type nominal against the hash: a value that carries a string
+ * `secretHash` (a `NewApiKey`, an `ApiKeyWithSecret`) is not assignable to `ApiKey`, so returning
+ * one where an `ApiKey` is expected is a compile error, not a leak. TypeScript's excess-property
+ * check alone only covers fresh object literals.
+ */
+export type ApiKey = z.infer<typeof ApiKey> & { secretHash?: never };
 
 /** What `insert` stores: the key plus its SHA-256 hash. Only the service that mints a key builds one. */
-export type NewApiKey = ApiKey & { secretHash: string };
+export type NewApiKey = Omit<ApiKey, "secretHash"> & { secretHash: string };
 
 /**
  * What the verify path reads (`findByPrefix`): just the columns it needs, including the hash. Used

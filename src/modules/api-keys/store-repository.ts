@@ -3,6 +3,8 @@ import type { DbState } from "@/src/db/state";
 import { AppError } from "@/src/lib/errors";
 
 import type { ApiKeyRepository } from "./repository";
+import type { WorkspaceScope } from "@/src/db/scope";
+
 import type { ApiKey, NewApiKey } from "./schema";
 
 /** The stored record minus the hash. Built field by field so the hash can never ride along. */
@@ -24,19 +26,36 @@ const newestFirst = (a: ApiKey, b: ApiKey) => b.createdAt.localeCompare(a.create
 const inWorkspace = (state: DbState, workspaceId: string) =>
   state.apiKeys.filter((k) => k.workspaceId === workspaceId);
 
-/** Demo store (ADR-011). It has no RLS: the service's role checks are the only guard here. */
+/**
+ * The select and update policies, kept in the demo store: a caller sees (and may revoke) their own
+ * keys, and owners and admins see every key in the workspace. Without this a service that forgot a
+ * role check would leak names, prefixes and last-used times in demo mode only.
+ */
+const canSee = (state: DbState, scope: WorkspaceScope, key: NewApiKey) =>
+  key.userId === scope.session.userId ||
+  state.workspaceMembers.some(
+    (m) =>
+      m.workspaceId === key.workspaceId &&
+      m.userId === scope.session.userId &&
+      (m.role === "owner" || m.role === "admin"),
+  );
+
+/** Demo store (ADR-011). Its only access control is `canSee` and the checks in `insert`. */
 export const storeApiKeys: ApiKeyRepository = {
   async listForUser(scope, userId) {
     const state = await readState();
     return inWorkspace(state, scope.workspace.id)
-      .filter((k) => k.userId === userId)
+      .filter((k) => k.userId === userId && canSee(state, scope, k))
       .map(strip)
       .sort(newestFirst);
   },
 
   async listForWorkspace(scope) {
     const state = await readState();
-    return inWorkspace(state, scope.workspace.id).map(strip).sort(newestFirst);
+    return inWorkspace(state, scope.workspace.id)
+      .filter((k) => canSee(state, scope, k))
+      .map(strip)
+      .sort(newestFirst);
   },
 
   async insert(scope, key) {
@@ -59,7 +78,10 @@ export const storeApiKeys: ApiKeyRepository = {
 
   async revoke(scope, id, at) {
     return transact((state) => {
-      const key = inWorkspace(state, scope.workspace.id).find((k) => k.id === id);
+      // A key the caller can't see is "not found", as under RLS.
+      const key = inWorkspace(state, scope.workspace.id).find(
+        (k) => k.id === id && canSee(state, scope, k),
+      );
       if (!key) throw new AppError("NOT_FOUND", "API key not found");
       key.revokedAt ??= at;
       return strip(key);

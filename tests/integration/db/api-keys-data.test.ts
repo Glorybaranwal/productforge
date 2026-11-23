@@ -13,7 +13,7 @@ import { setUserRunner, type UserRunner, type WorkspaceScope } from "@/src/db/sc
 import { readState, transact } from "@/src/db/store";
 import { newId } from "@/src/lib/ids";
 import { apiKeyRepository } from "@/src/modules/api-keys/repository";
-import type { NewApiKey } from "@/src/modules/api-keys/schema";
+import type { ApiKey, NewApiKey } from "@/src/modules/api-keys/schema";
 
 import {
   createRlsDb,
@@ -43,7 +43,8 @@ const base32 = "abcdefghijklmnopqrstuvwxyz234567";
 /** A unique, well-formed prefix per key. */
 const nextPrefix = () => {
   n += 1;
-  return Array.from({ length: 8 }, (_, i) => base32[(n * (i + 3) + i) % 32]).join("");
+  // n written in base 32 across all eight characters: distinct for every n below 32^8.
+  return Array.from({ length: 8 }, (_, i) => base32[Math.floor(n / 32 ** i) % 32]).join("");
 };
 
 const keyFor = (userId: string, workspaceId: string, over: Partial<NewApiKey> = {}): NewApiKey => ({
@@ -183,6 +184,25 @@ describe("who can insert (insert policy and foreign key)", () => {
   it("rejects a scope outside read/write", async () => {
     await expectPgCode(
       seedKey(keyFor(USERS.dev, WS.ana, { scope: "approve" as unknown as "read" })),
+      "23514",
+    );
+  });
+});
+
+describe("the table refuses malformed rows itself (check constraints)", () => {
+  it("accepts a well-formed key, then refuses a bad prefix, hash or expiry window", async () => {
+    await seedKey(keyFor(USERS.dev, WS.ana)); // control: the same shape, well formed
+    await expectPgCode(seedKey(keyFor(USERS.dev, WS.ana, { prefix: "ABCDEFGH" })), "23514");
+    await expectPgCode(seedKey(keyFor(USERS.dev, WS.ana, { prefix: "abc1defg" })), "23514");
+    await expectPgCode(seedKey(keyFor(USERS.dev, WS.ana, { secretHash: "not-a-hash" })), "23514");
+    const created = Date.now();
+    const at = (days: number) => new Date(created + days * 864e5).toISOString();
+    await expectPgCode(
+      seedKey(keyFor(USERS.dev, WS.ana, { createdAt: at(0), expiresAt: at(-1) })),
+      "23514",
+    );
+    await expectPgCode(
+      seedKey(keyFor(USERS.dev, WS.ana, { createdAt: at(0), expiresAt: at(400) })),
       "23514",
     );
   });
@@ -336,5 +356,68 @@ describe("the demo store backend", () => {
     await expect(
       apiKeyRepository.insert(scopeOf(USERS.ben, WS.ana, "Ben"), keyFor(USERS.ben, WS.ana)),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  const addMember = (userId: string, role: "owner" | "admin" | "pm" | "developer") =>
+    transact((state) => {
+      if (!state.workspaceMembers.some((m) => m.workspaceId === WS.ana && m.userId === userId))
+        state.workspaceMembers.push({
+          workspaceId: WS.ana,
+          userId,
+          role,
+          createdAt: new Date().toISOString(),
+        });
+    });
+
+  it("shows a member only their own keys, and owners and admins all of them (select policy)", async () => {
+    await addMember(USERS.ana, "owner");
+    await addMember(USERS.adi, "admin");
+    await addMember(USERS.dev, "developer");
+    await addMember(USERS.pam, "pm");
+    const devKey = keyFor(USERS.dev, WS.ana);
+    const pamKey = keyFor(USERS.pam, WS.ana);
+    await apiKeyRepository.insert(scopeOf(USERS.dev, WS.ana, "Dev"), devKey);
+    await apiKeyRepository.insert(scopeOf(USERS.pam, WS.ana, "Pam"), pamKey);
+
+    const ids = async (user: string, name: string) =>
+      (await apiKeyRepository.listForWorkspace(scopeOf(user, WS.ana, name))).map((k) => k.id);
+    expect(await ids(USERS.dev, "Dev")).toEqual([devKey.id]);
+    expect(
+      await apiKeyRepository.listForUser(scopeOf(USERS.dev, WS.ana, "Dev"), USERS.pam),
+    ).toEqual([]);
+    for (const [user, name] of [
+      [USERS.ana, "Ana"],
+      [USERS.adi, "Adi"],
+    ] as const)
+      expect(await ids(user, name)).toEqual(expect.arrayContaining([devKey.id, pamKey.id]));
+    expect(
+      (await apiKeyRepository.listForUser(scopeOf(USERS.adi, WS.ana, "Adi"), USERS.pam)).map(
+        (k) => k.id,
+      ),
+    ).toEqual([pamKey.id]);
+  });
+
+  it("lets only the key's owner or an admin revoke it (update policy)", async () => {
+    await addMember(USERS.adi, "admin");
+    await addMember(USERS.dev, "developer");
+    await addMember(USERS.pam, "pm");
+    const key = keyFor(USERS.dev, WS.ana);
+    await apiKeyRepository.insert(scopeOf(USERS.dev, WS.ana, "Dev"), key);
+    const at = "2026-11-23T14:00:00.000Z";
+
+    await expect(
+      apiKeyRepository.revoke(scopeOf(USERS.pam, WS.ana, "Pam"), key.id, at),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect((await readState()).apiKeys.find((k) => k.id === key.id)?.revokedAt).toBeNull();
+
+    const byAdmin = await apiKeyRepository.revoke(scopeOf(USERS.adi, WS.ana, "Adi"), key.id, at);
+    expect(byAdmin.revokedAt).toBe(at);
+  });
+
+  it("refuses to hand a hash-carrying key out as an ApiKey (compile-time)", () => {
+    const stored = keyFor(USERS.dev, WS.ana);
+    // @ts-expect-error a NewApiKey carries secretHash, so it is not an ApiKey
+    const leaked: ApiKey = stored;
+    expect(leaked).toBeDefined();
   });
 });
