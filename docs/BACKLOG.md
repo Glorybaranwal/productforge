@@ -114,6 +114,13 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
     can sign up are the Supabase project's own team, at a few emails an hour, and a link opened in a different
     browser than the one that asked for it fails. Mostly dashboard work (custom SMTP + the template); the
     callback already accepts `token_hash`.
+  - *2026-11-23:* the exact steps are now written down in `docs/DEPLOY.md` ("Make sign-in emails work for
+    real people"): custom SMTP, raising the separate email rate limit, and the template. **Correction to the
+    line above:** the template link is `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email`, not
+    `{{ .SiteURL }}/...`. `sign-in.ts` sets `emailRedirectTo` to `<APP_URL>/auth/callback?next=<dest>`, so
+    `RedirectTo` already carries the path and the destination; `SiteURL` would drop `next` and would mail a
+    production link to someone signing in from localhost. Still open: only the owner can do it, in the
+    Supabase dashboard.
 - [x] **PF-018 — Hosting region (ask first)** · Depends on: PF-015
   - The database is in eu-west-1; the team (and likely first users) are in India: ~250 ms per round trip. Either keep
     eu-west-1 and pin Vercel functions to `dub1`, or move Supabase to ap-south-1 (Mumbai) with Vercel `bom1` while
