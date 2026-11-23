@@ -506,7 +506,8 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
     create and on unmount, the empty-state wording); client-clock expiry refusing 366 days when the clock runs
     ahead; `ownerLabel`'s dead branch; and date hydration.
   - **A key shares its owner's 5-open-stream cap** on `GET /api/projects/:id/runs/live`, so a busy key can lock
-    the human out of their own dashboard. Fold into PF-084's counters rather than fixing separately.
+    the human out of their own dashboard. **Done in PF-084** by re-keying the cap on the principal; it stays a
+    concurrency cap and is not folded into the counters (ADR-037).
   - **Member names:** an owner or admin sees another member's key as `Member <first 8 of userId>`, because no
     member directory exists. Needs a backend lookup before the UI can show a name.
   - **Done when:** each item is done or has a reason noted here.
@@ -537,8 +538,17 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - **Done when:** a unit test shows a window counting and resetting; an integration test gets 429 with a
     `Retry-After` header on the 11th upload inside a minute; two separate contexts share one counter (PGlite);
     the AI budget's 429 carries the header.
-  - Follow-up noted, not in scope: the live-view cap is 5 per user **per server**, so it is approximate too — move
-    it onto the same counters if it ever matters.
+  - *2026-11-23:* counter done (ADR-037): `rate_limit_hits` + migration 0011 + `src/lib/rate-limit.ts`,
+    admin-written with every grant revoked, a one-statement upsert (25 concurrent calls → exactly 10 allowed),
+    failing open with `logger.error`, and `Retry-After` on every `RATE_LIMITED` — including the AI budget's
+    monthly 429, which had been inheriting a misleading 60 seconds when that budget resets on the 1st.
+    Left: classifying each request and applying the limit (Task 2).
+  - Follow-up noted, not in scope: the live-view cap stays an in-memory **concurrency** cap, re-keyed by
+    principal so a key no longer consumes its owner's five slots. It is deliberately *not* moved onto the
+    counters: a fixed-window counter counts opens per minute, which is not what that cap means (ADR-037).
+  - Follow-up: a pool-level `statement_timeout` on the admin client in place of the 2 s client-side race, so an
+    abandoned counter query cannot retain its pooled connection. Needs a run to see what a cap would do to
+    `db:audit` and `db:check`, which share that pool.
 
 ## Later (not scheduled)
 
