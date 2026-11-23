@@ -920,3 +920,57 @@ likeliest real failure, a key hitting its 90-day expiry. Reads are not audited, 
 an `api_key.first_used` entry (best-effort, through the key's own context, never failing the request);
 `last_used_at` alone is overwritten by the next use. Two first uses racing may each write one entry.
 
+
+### ADR-037 — HTTP rate limits: Postgres counters, written by nobody the limit applies to (PF-084)
+**Status:** ACCEPTED · 2026-11-23 · decided by Claude acting as PM, at the user's request ("if your system
+could get hammered by bots or abuse, mention rate limiting")
+**Decision:**
+- **Fixed-window counters in `rate_limit_hits`**, keyed by principal and bucket. A principal is
+  `user:<uuid>` for a cookie session and `key:<uuid>` for an API key; buckets are `upload` (10/min),
+  `export` (20), `generate` (12), `write` (60) and `read` (240), each overridable by env. Postgres rather
+  than memory because Vercel runs many instances, and rather than Redis because ADR-035 already proved the
+  database-counter pattern for the AI budget and this adds no dependency.
+- **The table is written only through `adminDb()`, every privilege is revoked from `authenticated` and
+  `anon`, and RLS is on with no policies at all.** The obvious design — write the counter as the acting
+  user under RLS — defeats itself: anyone who can write their own counter row can delete it and reset
+  their own limit. Admin-only writes remove the attack instead of policing it.
+- **Increment and test in one statement** (`insert … on conflict … do update set hits = hits + 1
+  returning hits`). A read-then-write lets two concurrent requests both read 9, both find themselves under
+  a limit of 10, and both proceed. Proved: 25 concurrent calls, exactly 10 allowed, `hits` 25.
+- **Only `/api/*` is metered; a page render never is.** ADR-023 took page loads from 2–7 s down to
+  86–226 ms, and a counter round trip on every render would spend that back. The abuse surface is scripts
+  and keys, which already pay a verification lookup.
+- **A key meters as itself, not as its owner**, so a runaway script cannot exhaust the human's allowance.
+  The same reasoning re-keyed the live-view cap, which stays an in-memory *concurrency* cap of 5 open
+  streams: a fixed-window counter counts opens per minute, so folding it in would have quietly changed
+  what it means while looking like a fix.
+- **The limiter fails open, loudly.** On an infrastructure failure it logs at error level and lets the
+  request through. Failing closed would turn a counter outage into a total API outage; failing open costs
+  little because every table the app reads lives in the same Postgres, so a counter failure usually means
+  the request dies at the data layer anyway. The deliberate `RATE_LIMITED` is thrown outside the
+  try/catch, so no failure path can swallow it — a caller-side catch would have disabled the limiter while
+  appearing to protect it.
+- **Every `RATE_LIMITED` response carries `Retry-After`.** That exposed a defect this decision created:
+  the AI budget's monthly branch had no retry hint, so it inherited a default of 60 seconds while the
+  budget actually resets on the 1st. A polite client would have retried every minute for weeks, each retry
+  costing a usage query. It now computes the seconds to the next UTC month. **A header that lies is worse
+  than no header**, because a client trusts it.
+**Why:** a public URL with open sign-up in front of paid AI runs, now reachable by script through an API
+key (ADR-036), is worth metering before the link is shared.
+**Consequences:** the counter query carries a 2-second client-side timeout, which bounds the latency a
+caller sees but does not cancel the query server-side — an abandoned one keeps its pooled connection until
+the pool reclaims it, and the plausible trigger is lock contention on a single counter row, since the
+upsert serialises on it by design. A pool-level `statement_timeout` on the admin client would cost nothing
+per request, but that pool is shared with `db:audit` and `db:check`; filed as a follow-up rather than
+changed without being able to run anything. Sign-in paths are metered per IP in middleware, which is
+per-instance and therefore approximate — a speed bump in front of Supabase's own limit, not the real
+control.
+
+**The lesson worth keeping.** Redacting the field we chose did not protect the value. The fail-open log
+hashed its `principal` correctly and still leaked the raw id, because the neighbouring `error: err.message`
+carried it: drizzle wraps a query failure as `Failed query: <sql>\nparams: <values>`, the principal is a
+bound parameter, and the logger's 300-character cut lands *after* the parameters rather than before them.
+A uuid is not credential-shaped, so PF-076's masking passed it through. Hence `safeErrorMessage()` in
+`src/lib/logger.ts`, which unwraps to the driver's own cause, wired into `redact()` so that passing an
+error object is safe even for a caller who does not know to use it. The same shape existed in three other
+places, including the catch-all in `errors.ts` that every unexpected failure reaches.
