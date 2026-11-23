@@ -321,9 +321,15 @@ describe("the verify path (admin client)", () => {
 });
 
 describe("the demo store backend", () => {
-  beforeEach(() => {
+  // The memory store lives for the whole process, so each test starts from an empty one and seeds
+  // the members it needs; no test may lean on what an earlier one left behind.
+  beforeEach(async () => {
     vi.stubEnv("DATA_DRIVER", "memory");
     vi.stubEnv("AUTH_DRIVER", "demo");
+    await transact((state) => {
+      state.apiKeys.length = 0;
+      state.workspaceMembers.length = 0;
+    });
   });
 
   it("round-trips the same calls", async () => {
