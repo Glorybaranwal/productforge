@@ -68,6 +68,65 @@ Set these by hand. Do not use the Supabase–Vercel integration. It changed thes
 4. Keep `http://localhost:3000/auth/callback?**` in the list, so local development still works.
 5. Save.
 
+## PF-017 — Make sign-in emails work for real people
+
+Until this is done you are the only person who can sign in, and even you cannot sign in on a second
+device. Two separate causes, both fixed here. Neither needs a code change: `/auth/callback` already
+accepts the link this produces.
+
+### 1. Custom SMTP, so the email reaches anyone at all
+
+Supabase's built-in email sender only delivers to members of the Supabase project's own team, and
+only a couple of messages an hour. Any other address is refused outright — the app already turns
+that into "We can't send sign-in emails to this address yet."
+
+1. Sign up with an email sender (Resend, Postmark, SendGrid, Mailgun and Amazon SES all work) and
+   verify the domain you will send from. Verify it properly, with the SPF and DKIM records the
+   provider gives you: without them the mail is delivered but lands in spam, which looks exactly
+   like mail that was never sent.
+2. In Supabase, open **Project Settings → Authentication → SMTP Settings** and turn on custom SMTP.
+   Fill in the host, port, username and password from the provider, and set the sender address to
+   one at the domain you verified.
+3. In **Authentication → Rate Limits**, raise the email limit. It stays at the built-in sender's
+   couple-per-hour until you change it, whatever SMTP you configured.
+4. Send yourself a test from the provider's own dashboard before you trust it.
+
+### 2. A `token_hash` email template, so the link works on another device
+
+The default template sends a link carrying a `code`. Exchanging that code needs a PKCE verifier that
+only exists in the browser that asked for the link, so a link opened in a phone's mail app fails
+every time. A `token_hash` link carries no browser state and works anywhere.
+
+Open **Authentication → Email Templates → Magic Link** and make the link point here:
+
+```
+{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email
+```
+
+Use `{{ .RedirectTo }}` and not `{{ .SiteURL }}`. The app sets `emailRedirectTo` to
+`<APP_URL>/auth/callback?next=<where they were going>`, so `{{ .RedirectTo }}` already carries both
+the callback path and that destination — hence the `&` rather than a `?`. It also keeps local
+development working, because a link requested from `localhost` comes back to `localhost`, whereas
+`{{ .SiteURL }}` would always send you to production and would drop the `next` parameter, landing
+everyone on the dashboard root.
+
+Do the same to the **Confirm signup** template if you want a first-time sign-up to land in the app
+rather than on a bare confirmation page.
+
+`type=email` is correct; the callback also accepts `magiclink`. Anything else is rejected and the
+user is sent to `/login?error=missing_code`.
+
+### Checking it
+
+1. Request a link on your laptop, then open it on your phone. You should land signed in, on the page
+   you asked for rather than the dashboard root.
+2. Request a link for an address outside the Supabase project's team. It should arrive.
+3. Check the sender's dashboard for the delivery, and the spam folder if it does not appear.
+
+Both redirect URLs must still be in **Authentication → URL Configuration → Redirect URLs** —
+`https://productforge-l5ep.vercel.app/auth/callback?**` and
+`http://localhost:3000/auth/callback?**`.
+
 ## Order of steps
 
 Do these steps in this order.
