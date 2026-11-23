@@ -35,6 +35,14 @@ export function AppShell({
           <span className="truncate text-sm text-muted-foreground" data-testid="workspace-name">
             {workspaceName}
           </span>
+          <nav aria-label="Main" className="ml-2 flex items-center gap-1 text-sm">
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/dashboard">Projects</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/dashboard/settings/api-keys">API keys</Link>
+            </Button>
+          </nav>
           <div className="ml-auto flex items-center gap-3">
             {authMode === "demo" ? (
               <Badge

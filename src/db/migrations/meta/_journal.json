@@ -71,6 +71,20 @@
       "when": 1795177008287,
       "tag": "0009_validate_run_links",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795177900000,
+      "tag": "0010_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795178800000,
+      "tag": "0011_rate_limits",
+      "breakpoints": true
     }
   ]
 }

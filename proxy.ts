@@ -19,8 +19,14 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except static assets and images.
   matcher: [
+    // Everything except static assets and images...
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    // ...but never skip the API or the dashboard, whatever their last segment looks like. A path such
+    // as `/dashboard/projects/x.png` still routes to a page, and without the proxy `x-pf-surface` would
+    // be whatever the client sent, which is what keeps API keys off `/dashboard` (PF-083). The proxy
+    // also runs the sign-in gate and the cross-site write check, so these must not be skippable.
+    "/api/:path*",
+    "/dashboard/:path*",
   ],
 };

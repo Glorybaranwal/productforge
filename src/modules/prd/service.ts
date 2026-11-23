@@ -1,6 +1,6 @@
 import { runStage, type StageDeps } from "@/src/ai/orchestrator/run-stage";
 import { prdStage } from "@/src/ai/stages/prd.stage";
-import { MANAGER_ROLES, requireRole } from "@/src/lib/auth";
+import { MANAGER_ROLES, refuseApiKeyApproval, requireRole } from "@/src/lib/auth";
 import { AppError, parseOrThrow } from "@/src/lib/errors";
 import { unitOfWork } from "@/src/db/scope";
 import { withIdempotency } from "@/src/lib/idempotency";
@@ -177,6 +177,7 @@ export async function updatePrdSection(
 
 /** Gate 2: approve and freeze a version. */
 export async function approvePrd(ctx: WorkspaceContext, id: string): Promise<Prd> {
+  refuseApiKeyApproval(ctx);
   requireRole(ctx.role, MANAGER_ROLES, "approve the PRD");
   const prd = await findPrd(ctx, id);
   const versions = await prdRepository.listByProject(ctx, prd.projectId);

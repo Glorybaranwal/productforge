@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { logger } from "./logger";
+import { logger, safeErrorMessage } from "./logger";
 
 export type ErrorCode =
   | "VALIDATION_ERROR"
@@ -76,14 +76,36 @@ export function toErrorBody(err: unknown): { status: number; body: ApiErrorBody 
       },
     };
   }
-  logger.error("Unhandled error", { error: err instanceof Error ? err.message : String(err) });
+  logger.error("Unhandled error", { error: safeErrorMessage(err) });
   return {
     status: 500,
     body: { error: { code: "INTERNAL", message: "Something went wrong. Please try again." } },
   };
 }
 
+/** Seconds a client should wait after a RATE_LIMITED error that doesn't say (PF-084). */
+const DEFAULT_RETRY_AFTER_SECONDS = 60;
+
+/** `retryAfterSeconds` from an error's details when it is a positive whole number, else the default. */
+function retryAfterOf(err: unknown): number {
+  const details = err instanceof AppError ? err.details : undefined;
+  const seconds =
+    typeof details === "object" && details !== null
+      ? (details as { retryAfterSeconds?: unknown }).retryAfterSeconds
+      : undefined;
+  if (typeof seconds === "number" && Number.isInteger(seconds) && seconds > 0) return seconds;
+  // A producer that says nothing is a guess worth seeing; one that says something unusable is a bug.
+  logger.warn("RATE_LIMITED without a usable retryAfterSeconds; sending the default", {
+    retryAfterSeconds: seconds === undefined ? "missing" : String(seconds),
+  });
+  return DEFAULT_RETRY_AFTER_SECONDS;
+}
+
 export function errorResponse(err: unknown): Response {
   const { status, body } = toErrorBody(err);
-  return Response.json(body, { status });
+  // Every 429 carries Retry-After so a well-behaved client can back off. Only here, not in
+  // toErrorBody: src/lib/supabase/proxy.ts builds error bodies without going through errorResponse.
+  const headers =
+    body.error.code === "RATE_LIMITED" ? { "Retry-After": String(retryAfterOf(err)) } : undefined;
+  return Response.json(body, { status, headers });
 }

@@ -1,7 +1,7 @@
 import { runStage, type StageDeps } from "@/src/ai/orchestrator/run-stage";
 import { discoveryStage } from "@/src/ai/stages/discovery.stage";
 import { unitOfWork } from "@/src/db/scope";
-import { MANAGER_ROLES, requireRole } from "@/src/lib/auth";
+import { MANAGER_ROLES, refuseApiKeyApproval, requireRole } from "@/src/lib/auth";
 import { AppError } from "@/src/lib/errors";
 import { withIdempotency } from "@/src/lib/idempotency";
 import { nowIso } from "@/src/lib/ids";
@@ -137,6 +137,7 @@ export async function confirmRequirements(
   ctx: WorkspaceContext,
   projectId: string,
 ): Promise<DiscoveryState> {
+  refuseApiKeyApproval(ctx);
   requireRole(ctx.role, MANAGER_ROLES, "confirm requirements");
   const state = await getDiscoveryState(ctx, projectId);
   if (state.blockers.length > 0)

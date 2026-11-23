@@ -6,22 +6,20 @@
 
 - **Phase:** Week 8/9 — the pipeline is built and every module's data is in Postgres; the remaining work is making
   production real and safe to share
-- **In progress:** PF-064 (production deploy: code done on branch `launch`, awaiting its final review, then the
-  owner's steps in `docs/DEPLOY.md`); PF-010 (local Supabase via the CLI), PF-050 (Jira test import),
-  PF-060 (browser journeys: J1, J2 pass; J3-J8 left)
+- **In progress:** PF-064 (production deploy: code done on `launch`, pushed; awaiting the owner's steps in
+  `docs/DEPLOY.md`); PF-010 (local Supabase via the CLI), PF-050 (Jira test import), PF-060 (J1, J2 pass; J3-J8 left)
+- **Four branches wait on the developer**, stacked in this merge order: `launch` (PF-075 closure + PF-064),
+  `m0-week9-plan` (Week 9 plan + ADR-036), `m0-auth-email` (PF-017 runbook), `m0-api-keys` (PF-083, 30 commits).
+  The first two are pushed; the last two are not. Claude cannot push — the VM's proxy refuses GitHub.
 - **Next up, in priority order:**
-  1. **PF-064** - merge `launch` into `main`, then the owner's steps in `docs/DEPLOY.md`, then the smoke test.
-     Production answers 500 on `/dashboard` until the Supabase variables are set, so nothing else can be checked
-     against a live site.
-  2. **PF-017 (auth emails)** - raised to a launch blocker: Supabase's built-in email reaches only the project team
-     at a few an hour, so nobody else can sign up, and a magic link opened on another device fails until the
-     template uses `token_hash` (the callback already accepts it).
-  3. **PF-083 (API keys)** and **PF-084 (HTTP rate limits + `Retry-After`)** - ADR-036, Week 9. Do these before the
-     URL is handed out: signup is open and every AI run costs money.
+  1. **PF-064** - merge `launch`, then the owner's steps in `docs/DEPLOY.md`, then the smoke test.
+  2. **PF-017 (auth emails)** - the launch blocker. Steps are written in `docs/DEPLOY.md`; only the owner can do
+     them, in the Supabase dashboard.
+  3. **PF-084 (HTTP rate limits + `Retry-After`)** - the last Week 9 task, now unblocked by PF-083.
   4. **PF-078** (rotate the secrets pasted in chat) and **PF-067** (verify the database certificate).
   5. **PF-060 J3-J8**, then **PF-045** + **PF-063** (eval metrics and the full report).
-  6. **PF-065** (README + demo), **PF-080**/**PF-081** (deferred minors), **PF-066** (major upgrades),
-     **PF-054**/**PF-055** (stretch).
+  6. **PF-065** (README + demo), **PF-085**/**PF-086**/**PF-087** (follow-ups), **PF-080**/**PF-081** (minors),
+     **PF-066** (major upgrades), **PF-054**/**PF-055** (stretch).
 - **Live preview:** https://claude.ai/artifact/UAKA9Kf7A8vRiXNyGbhkWo
 - **Blockers:** tests can't run inside Claude's link to the Mac, so `pnpm lint`, `pnpm typecheck` and `pnpm test`
   run on the developer's machine and in CI; Claude also can't push (the VM's proxy refuses GitHub), so the user
@@ -51,6 +49,7 @@ Newest first. One row per session.
 
 | Date | Tasks touched | Outcome | Notes for next session |
 | --- | --- | --- | --- |
+| 2026-11-23 | PF-083, PF-017, PF-086, PF-087 | PF-083 built and closed across three reviewed tasks (table + RLS + repository; mint/verify/enforce; settings screen). Whole-branch review READY WITH FIXES, 0 Critical; all 3 Important fixed. Enforcement turned out to need HTTP method, not the role ceiling ADR-036 specified, because member writes have no role check — two ADR-036 follow-ups record that and the rest. A key cannot approve: six writers of APPROVED guarded, the sixth found only by re-deriving the set a different way. PF-017's owner steps written down, with the email template corrected from `{{ .SiteURL }}` to `{{ .RedirectTo }}`. Tracker sheet synced (rev 25 -> 27) | **Nothing on these branches has been run:** vitest cannot start in Claude's VM, so every test is unexecuted and the settings page has never rendered. Run `pnpm install`, then lint, typecheck and test on the Mac; push `m0-auth-email` and `m0-api-keys`; merge the four branches in order; then PF-017 and PF-084 |
 | 2026-11-22 | PF-064, PF-083, PF-085 | Whole-branch review of `launch`: 0 Critical, 4 Important, all fixed. The seed could never have run (top-level `await` in a CommonJS package forces ESM; Next 16 has no `exports`, so the `next/headers` reached through `workspaces/service` could not resolve) — body moved into `main()` and `getSession` imported lazily, which drops `next/headers` from the script's graph. Runbook rollback step pointed at a deployment that 500s; smoke test was silent about PF-017. Planned Week 9 from the user's auth brief: ADR-036 (JWT sessions unchanged, member-bound API keys, three limiting tiers), PF-083 + PF-084. PF-017 raised to a launch blocker; milestone table corrected; PF-085 added for the seed's test gaps | The developer runs `pnpm install --frozen-lockfile` and one `pnpm db:seed` (neither can run in Claude's VM), then pushes `launch` and `m0-week9-plan`. Then the owner's steps in `docs/DEPLOY.md`, then PF-017, then PF-083 |
 | 2026-11-22 | PF-075, PF-060 | PF-075 closed: Postgres-only mode checked on Mumbai (all pages + endpoints 200, write path + live progress OK, data file untouched). Playwright J1/J2 pass on the Mac. Branch `m0-platform` ready for its pull request to `main` | Merge the PR once CI is green; then PF-064 (production deploy) is unblocked |
 | 2026-11-22 | PF-082 | Eval token cap (ADR-010 follow-up, user's call): `EVAL_TOKEN_CAP` (default 1M tokens) shared across all eval files via a global setup; early stop writes a partial report and fails; demo engine uncapped. 11 unit tests | Run a real `pnpm eval` once and tune the cap from the report's token line |

@@ -465,8 +465,22 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - Browsers keep their Supabase JWT session (ADR-021); anything that is not a browser authenticates with a
     workspace API key, and **every key acts as the member who created it**, so no policy changes (ADR-036).
   - `api_keys` table + RLS + migration 0010: `workspace_id`, `user_id` (issuer), `name`, `prefix`, `secret_hash`,
-    `scopes`, `created_at`, `last_used_at`, `expires_at`, `revoked_at`. The plaintext key is shown once and never
+    `scope`, `created_at`, `last_used_at`, `expires_at`, `revoked_at`. The plaintext key is shown once and never
     stored; only a SHA-256 hash and the non-secret `prefix` (for display and log correlation) are kept.
+  - *2026-11-23:* data layer done (`src/db/schema/api-keys.ts`, migration 0010, `src/modules/api-keys/`,
+    PGlite policy tests). One `scope` per key, not a list: write subsumes read, and no scope approves.
+    `expires_at` is mandatory and the table caps it at 366 days.
+  - *2026-11-23:* verify path and enforcement done (`src/lib/api-key.ts`, `src/lib/request-key.ts`,
+    `src/modules/api-keys/service.ts`, the gate, `currentContext`, both routes). Enforcement is by HTTP
+    method, not by role: see the ADR-036 follow-up — member writes have no role check, so the ceiling alone
+    could not hold a `read` key to reads.
+  - *2026-11-23:* **done.** Settings screen, audit trail and architecture note finished; whole-branch review
+    READY WITH FIXES (0 Critical), all three Important fixed: the route matrix now calls all 35 mutating routes
+    with a `read` key and asserts 403 with the scope's own message; first use writes an `api_key.first_used`
+    audit row (reads are not audited, so `last_used_at` alone left no trace a key had gone live); and a refused
+    key is told *why* once it has proved possession of the secret, while the three pre-authentication failures
+    stay byte-identical. See the two ADR-036 follow-ups. **Not run anywhere:** every test on the branch is
+    unexecuted (vitest cannot start in Claude's VM) and nobody has seen the settings page render.
   - `src/modules/api-keys/{schema,service,repository,store-repository,pg-repository}.ts` in the usual shape.
   - `src/lib/auth-key.ts`: `Authorization: Bearer pf_…` → prefix lookup → constant-time hash compare → expiry and
     revocation check → membership re-read → context via the existing `actAs(user_id)` path, with the key's
@@ -480,6 +494,34 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
     approve route, after revocation, after expiry, and once its member is removed from the workspace; the route
     matrix test calls every write route with a `read` key and gets 403; no test or log line ever contains a
     plaintext key.
+
+- [ ] **PF-086 — PF-083 follow-ups from the final review** · Module 0 (platform) · branch `m0-api-key-polish` ·
+      Depends on: PF-083
+  - The eleven minors the whole-branch review triaged to backlog, none of which block the merge:
+    column-level `SELECT` grant so `secret_hash` never rides along on a `select *` (needs
+    `pg-repository.ts`'s three `select *` calls turned into explicit column lists first); the PGlite suite's
+    exact-count assertions and shared-database ordering; `expectRlsRefusal` accepting any 42501 so a policy
+    denial and a missing column privilege look alike; the non-atomic `refreshEpics` backstop; the 490-line
+    `api-keys.test.ts`; four Task 3 test gaps (revoked rows keeping no Revoke button, the plaintext on a second
+    create and on unmount, the empty-state wording); client-clock expiry refusing 366 days when the clock runs
+    ahead; `ownerLabel`'s dead branch; and date hydration.
+  - **A key shares its owner's 5-open-stream cap** on `GET /api/projects/:id/runs/live`, so a busy key can lock
+    the human out of their own dashboard. **Done in PF-084** by re-keying the cap on the principal; it stays a
+    concurrency cap and is not folded into the counters (ADR-037).
+  - **Member names:** an owner or admin sees another member's key as `Member <first 8 of userId>`, because no
+    member directory exists. Needs a backend lookup before the UI can show a name.
+  - **Done when:** each item is done or has a reason noted here.
+
+- [ ] **PF-087 — Let the Jira sync use a read key** · Module 5 (sprint & export) · branch `m5-export-read-key` ·
+      Depends on: PF-083
+  - ADR-036 names the Jira sync as a motivating case for API keys, but it cannot use a `read` key: generating
+    the export is `POST /api/projects/:id/exports/jira` (it takes options in a body), and enforcement is by HTTP
+    method, so a POST demands `write`. Generating an export file reads data and changes none.
+  - Two routes out, neither free: exempt that path from the method rule, which weakens the one invariant all
+    enforcement rests on; or offer a GET form that takes its options as query parameters, leaving the POST alone.
+  - Until then the sync runs with a `write` key — over-privileged for what it does, though still capped at its
+    owner's role and still unable to approve anything.
+  - **Done when:** the Jira export can be driven by a `read` key, or this is closed with the reason recorded.
 
 - [ ] **PF-084 — HTTP rate limits and `Retry-After`** · Module 0 (platform) · branch `m0-rate-limit` ·
       Depends on: PF-083
@@ -496,8 +538,17 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - **Done when:** a unit test shows a window counting and resetting; an integration test gets 429 with a
     `Retry-After` header on the 11th upload inside a minute; two separate contexts share one counter (PGlite);
     the AI budget's 429 carries the header.
-  - Follow-up noted, not in scope: the live-view cap is 5 per user **per server**, so it is approximate too — move
-    it onto the same counters if it ever matters.
+  - *2026-11-23:* counter done (ADR-037): `rate_limit_hits` + migration 0011 + `src/lib/rate-limit.ts`,
+    admin-written with every grant revoked, a one-statement upsert (25 concurrent calls → exactly 10 allowed),
+    failing open with `logger.error`, and `Retry-After` on every `RATE_LIMITED` — including the AI budget's
+    monthly 429, which had been inheriting a misleading 60 seconds when that budget resets on the 1st.
+    Left: classifying each request and applying the limit (Task 2).
+  - Follow-up noted, not in scope: the live-view cap stays an in-memory **concurrency** cap, re-keyed by
+    principal so a key no longer consumes its owner's five slots. It is deliberately *not* moved onto the
+    counters: a fixed-window counter counts opens per minute, which is not what that cap means (ADR-037).
+  - Follow-up: a pool-level `statement_timeout` on the admin client in place of the 2 s client-side race, so an
+    abandoned counter query cannot retain its pooled connection. Needs a run to see what a cap would do to
+    `db:audit` and `db:check`, which share that pool.
 
 ## Later (not scheduled)
 

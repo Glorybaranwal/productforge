@@ -1,5 +1,5 @@
 /** Gate 3 actions on stories (PF-042): approve, approve all ready, reject, restore, version. */
-import { MANAGER_ROLES, requireRole } from "@/src/lib/auth";
+import { MANAGER_ROLES, refuseApiKeyApproval, requireRole } from "@/src/lib/auth";
 import { AppError, parseOrThrow } from "@/src/lib/errors";
 import { newId, nowIso } from "@/src/lib/ids";
 import { recordAudit } from "@/src/modules/audit/service";
@@ -12,6 +12,7 @@ import { loadBacklog, requireGate2, storyChecks } from "./state";
 
 /** Gate 3, one story at a time: freezes the story with its criteria and tasks. */
 export async function approveStory(ctx: WorkspaceContext, storyId: string): Promise<Story> {
+  refuseApiKeyApproval(ctx);
   requireRole(ctx.role, MANAGER_ROLES, "approve stories");
   const { story, b } = await current(ctx, storyId);
   requireDraft(story);
@@ -40,6 +41,7 @@ export async function approveReadyStories(
   ctx: WorkspaceContext,
   projectId: string,
 ): Promise<{ approved: string[]; skipped: number }> {
+  refuseApiKeyApproval(ctx);
   requireRole(ctx.role, MANAGER_ROLES, "approve stories");
   const b = await loadBacklog(ctx, projectId);
   requireGate2(b);
@@ -83,8 +85,16 @@ export async function rejectStory(
 ): Promise<Story> {
   requireRole(ctx.role, MANAGER_ROLES, "reject stories");
   const { reason } = parseOrThrow(StoryRejection, input);
-  const { story } = await current(ctx, storyId);
+  const { story, b } = await current(ctx, storyId);
   requireDraft(story);
+  if (ctx.viaApiKey) {
+    // Rejecting the last unapproved story would make `refreshEpics` approve its epic, which only a
+    // person may cause. Refuse now, before the story is touched, so a refused request changes nothing.
+    const rest = b.current.filter(
+      (s) => s.epicId === story.epicId && s.id !== story.id && s.status !== "REJECTED",
+    );
+    if (rest.length && rest.every((s) => s.status === "APPROVED")) refuseApiKeyApproval(ctx);
+  }
   const rejected = await backlogRepository.setStatus(ctx, storyId, ["DRAFT"], {
     status: "REJECTED",
     rejectionReason: reason,

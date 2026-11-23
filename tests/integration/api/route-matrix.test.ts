@@ -1,14 +1,30 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setLLMClient } from "@/src/ai/llm-client";
 import { transact } from "@/src/db/store";
 import { DEMO_USER, type Role } from "@/src/lib/auth";
+import { rateBucket, requestSurface } from "@/src/lib/auth-gate";
 import { actAs } from "@/src/lib/test-session";
 import { resetDb } from "@/tests/helpers/context";
 import { projectThroughGate2 } from "@/tests/helpers/backlog";
+import * as keysRoute from "@/app/api/workspace/api-keys/route";
+
+/**
+ * `next/headers` is replaced so a call can look like a request that went through `proxy.ts`: the
+ * `Authorization` header plus the `x-pf-surface` header the proxy stamps. With `headers` null (every
+ * test but the key sweep) it throws like a call outside a request, so no key is read.
+ */
+const request = vi.hoisted(() => ({ headers: null as Record<string, string> | null }));
+vi.mock("next/headers", () => ({
+  headers: async () => {
+    if (!request.headers) throw new Error("`headers` was called outside a request scope");
+    return new Headers(request.headers);
+  },
+  cookies: async () => ({ getAll: () => [], set: () => {} }),
+}));
 
 type Handler = (
   req: Request,
@@ -111,6 +127,8 @@ const FIXTURES: Record<string, unknown> = {
     includeTasks: true,
     subtaskType: "Sub-task",
   },
+  "POST /api/workspace/api-keys": { name: "Matrix key", scope: "read" },
+  "DELETE /api/workspace/api-keys/[id]": undefined,
 };
 
 const call = (route: Route, params: Record<string, string>) => {
@@ -145,9 +163,10 @@ async function seedWorkspaceA(routes: Route[]) {
     "agent-runs": discovery.latestRun.id as string,
     prds: prd.versions[0].id as string,
     stories: backlog.stories[0].id as string,
-    // No change request or sprint is created here: unknown ids must answer the same way.
+    // No change request, sprint or API key is created here: unknown ids must answer the same way.
     changes: crypto.randomUUID(),
     sprints: crypto.randomUUID(),
+    workspace: crypto.randomUUID(),
   };
 }
 
@@ -185,6 +204,9 @@ const MEMBER_WRITES = [
   "POST /api/prds/[id]/new-version",
   "PATCH /api/stories/[id]",
   "POST /api/projects/[id]/exports/jira",
+  // Any member may mint and revoke their own keys (PF-083, ADR-036).
+  "POST /api/workspace/api-keys",
+  "DELETE /api/workspace/api-keys/[id]",
 ];
 
 const setRole = (role: Role) =>
@@ -199,6 +221,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   actAs(null);
+  request.headers = null;
   delete process.env.AI_RUNS_PER_USER_PER_MINUTE;
 });
 
@@ -243,18 +266,94 @@ describe("route matrix (test plan §4–5, ADR-035)", () => {
   it("developers and QA get 403 on every manager-only route", async () => {
     const routes = await allRoutes();
     const ids = await seedWorkspaceA(routes);
-    const writes = routes.filter((r) => r.method !== "GET" && paramsFor(r.path, ids));
+    // Param-less routes (`POST /api/projects`, `POST /api/workspace/api-keys`) are included: `{}` params.
+    const writes = routes.filter((r) => r.method !== "GET");
 
     for (const role of ["developer", "qa"] as Role[]) {
       await setRole(role);
       const allowed: string[] = [];
       for (const route of writes) {
-        const res = await call(route, paramsFor(route.path, ids)!);
+        const res = await call(route, paramsFor(route.path, ids) ?? {});
         if (res.status !== 403 && !MEMBER_WRITES.includes(`${route.method} ${route.path}`))
           allowed.push(`${role} ${route.method} ${route.path} → ${res.status}`);
       }
       expect(allowed).toEqual([]);
     }
     await setRole("owner");
+  });
+
+  it("a read-scope API key gets 403 on every mutating route, whatever the route", async () => {
+    const routes = await allRoutes();
+    const ids = await seedWorkspaceA(routes);
+    const before = await snapshot(routes, ids);
+
+    // Mint as the demo owner; the key acts as the owner, so only the read scope can explain a refusal.
+    const minted = await keysRoute.POST(
+      new Request("http://localhost/api/workspace/api-keys", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Matrix read key", scope: "read" }),
+      }),
+    );
+    expect(minted.status).toBe(201);
+    const { plaintext } = (await minted.json()) as { plaintext: string };
+
+    const writes = routes.filter((r) => r.method !== "GET");
+    expect(writes.length).toBeGreaterThan(30);
+    const wrong: string[] = [];
+    let covered = 0;
+    for (const route of writes) {
+      // Param-less routes get `{}`; the others get A's real ids, with the fixture body, so a 400 or
+      // 404 can't answer before the scope check does.
+      request.headers = {
+        authorization: `Bearer ${plaintext}`,
+        "x-pf-surface": requestSurface(route.path, route.method),
+      };
+      let res: Response;
+      try {
+        res = await call(route, paramsFor(route.path, ids) ?? {});
+      } finally {
+        request.headers = null;
+      }
+      covered++;
+      const message = ((await res.json().catch(() => ({}))) as { error?: { message?: string } })
+        .error?.message;
+      // The message separates "the key is read-only" from any other 403 (a role check).
+      if (res.status !== 403 || message !== "This API key is read-only")
+        wrong.push(`${key(route)} → ${res.status} ${message ?? ""}`);
+    }
+    expect(wrong).toEqual([]);
+    expect(covered).toBe(writes.length);
+    expect(await snapshot(routes, ids)).toEqual(before);
+  });
+
+  it("every route has a rate-limit class, and the expensive ones are pinned (PF-084)", async () => {
+    // Pure classification: no counter is touched, so this stays independent of the sweeps above.
+    const routes = await allRoutes();
+    const classes = new Map<string, string[]>();
+    for (const route of routes) {
+      const bucket = rateBucket(route.path.replace(/\[(\w+)\]/g, "x"), route.method);
+      expect(bucket, key(route)).not.toBeNull();
+      classes.set(bucket!, [...(classes.get(bucket!) ?? []), key(route)]);
+    }
+    // A new generating route must be added to this list on purpose: left out, it would be metered as
+    // `write` (60/min) instead of `generate` (12/min) without anyone noticing.
+    expect(classes.get("generate")?.sort()).toEqual([
+      "POST /api/changes/[id]/analyze",
+      "POST /api/projects/[id]/backlog/generate",
+      "POST /api/projects/[id]/changes",
+      "POST /api/projects/[id]/discovery",
+      "POST /api/projects/[id]/prd/generate",
+      "POST /api/stories/[id]/regenerate",
+    ]);
+    expect(classes.get("upload")).toEqual(["POST /api/projects/[id]/sources"]);
+    expect(classes.get("export")?.sort()).toEqual([
+      "GET /api/prds/[id]/markdown",
+      "GET /api/projects/[id]/backlog/markdown",
+      "GET /api/projects/[id]/traceability/csv",
+      "POST /api/projects/[id]/exports/jira",
+    ]);
+    // Safe methods are reads and nothing else.
+    for (const name of classes.get("read") ?? []) expect(name.startsWith("GET ")).toBe(true);
   });
 });
