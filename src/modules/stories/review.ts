@@ -85,8 +85,16 @@ export async function rejectStory(
 ): Promise<Story> {
   requireRole(ctx.role, MANAGER_ROLES, "reject stories");
   const { reason } = parseOrThrow(StoryRejection, input);
-  const { story } = await current(ctx, storyId);
+  const { story, b } = await current(ctx, storyId);
   requireDraft(story);
+  if (ctx.viaApiKey) {
+    // Rejecting the last unapproved story would make `refreshEpics` approve its epic, which only a
+    // person may cause. Refuse now, before the story is touched, so a refused request changes nothing.
+    const rest = b.current.filter(
+      (s) => s.epicId === story.epicId && s.id !== story.id && s.status !== "REJECTED",
+    );
+    if (rest.length && rest.every((s) => s.status === "APPROVED")) refuseApiKeyApproval(ctx);
+  }
   const rejected = await backlogRepository.setStatus(ctx, storyId, ["DRAFT"], {
     status: "REJECTED",
     rejectionReason: reason,
