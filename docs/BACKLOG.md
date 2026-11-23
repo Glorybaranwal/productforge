@@ -110,6 +110,10 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
     magic-link template linking to `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email`, so a link
     opened on another device works (`/auth/callback` already accepts it).
   - **Done when:** a link requested on a laptop signs in on a phone; an address outside the team receives it.
+  - *2026-11-22:* raised to a **launch blocker**, second only to PF-064: until this is done the only people who
+    can sign up are the Supabase project's own team, at a few emails an hour, and a link opened in a different
+    browser than the one that asked for it fails. Mostly dashboard work (custom SMTP + the template); the
+    callback already accepts `token_hash`.
 - [x] **PF-018 — Hosting region (ask first)** · Depends on: PF-015
   - The database is in eu-west-1; the team (and likely first users) are in India: ~250 ms per round trip. Either keep
     eu-west-1 and pin Vercel functions to `dub1`, or move Supabase to ap-south-1 (Mumbai) with Vercel `bom1` while
@@ -450,6 +454,50 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - Cover the resume branches that have no test: a PRD draft with no approval, and stories with no sprints.
   - **Done when:** each item above is done or has a reason noted here, and one test fails if the seed script
     stops loading.
+
+## Week 9 — Access control and abuse limits (2026-11-22)
+
+> Why now: the pipeline is built and all of its data is in Postgres, so the remaining work is making the public
+> URL safe to hand out. See ADR-036. Each task below is one module, one branch, one pull request.
+
+- [ ] **PF-083 — API keys for service-to-service calls** · Module 0 (platform) · branch `m0-api-keys` ·
+      Depends on: PF-013, PF-015
+  - Browsers keep their Supabase JWT session (ADR-021); anything that is not a browser authenticates with a
+    workspace API key, and **every key acts as the member who created it**, so no policy changes (ADR-036).
+  - `api_keys` table + RLS + migration 0010: `workspace_id`, `user_id` (issuer), `name`, `prefix`, `secret_hash`,
+    `scopes`, `created_at`, `last_used_at`, `expires_at`, `revoked_at`. The plaintext key is shown once and never
+    stored; only a SHA-256 hash and the non-secret `prefix` (for display and log correlation) are kept.
+  - `src/modules/api-keys/{schema,service,repository,store-repository,pg-repository}.ts` in the usual shape.
+  - `src/lib/auth-key.ts`: `Authorization: Bearer pf_…` → prefix lookup → constant-time hash compare → expiry and
+    revocation check → membership re-read → context via the existing `actAs(user_id)` path, with the key's
+    effective role the **lower** of its scope and the member's current role. Touches `last_used_at`.
+  - Scopes are `read` and `write` only. A key is refused (403) on every approve/confirm route whatever its owner's
+    role, because approval is a human action (CLAUDE.md §7.7).
+  - On `/api/*` a bearer key authenticates the request and the cookie is ignored; `/dashboard/*` never accepts a key.
+  - Settings → API keys: create (name, scope, expiry), the key shown once, list with prefix and last used, revoke.
+  - Audit entries for create, revoke and first use. `docs/ARCHITECTURE.md` gains the auth model section.
+  - **Done when:** a key made in the UI reads `GET /api/projects` from `curl`; the same key is refused on an
+    approve route, after revocation, after expiry, and once its member is removed from the workspace; the route
+    matrix test calls every write route with a `read` key and gets 403; no test or log line ever contains a
+    plaintext key.
+
+- [ ] **PF-084 — HTTP rate limits and `Retry-After`** · Module 0 (platform) · branch `m0-rate-limit` ·
+      Depends on: PF-083
+  - Today only AI runs, sign-in and live views are metered (PF-062); the other 42 routes are not, and no 429
+    anywhere sets a `Retry-After` header, so a well-behaved client cannot back off.
+  - `src/lib/rate-limit.ts`: fixed-window counters in Postgres keyed by principal (user id or API key id) and route
+    class, with the limits in env. Postgres rather than memory because Vercel runs many instances and the AI budget
+    already proved the pattern (ADR-035).
+  - Route classes and starting limits: upload 10/min, export 20/min, generate 12/min (on top of the run budget),
+    other writes 60/min, reads 240/min.
+  - Unauthenticated paths (`/login`, `/auth/*`) get a per-IP guard in `proxy.ts`: in-memory, per-instance and
+    therefore approximate — a speed bump in front of Supabase's own sign-in limit, not the real control.
+  - `errorResponse` sets `Retry-After` on every `RATE_LIMITED` response, including the existing AI budget 429.
+  - **Done when:** a unit test shows a window counting and resetting; an integration test gets 429 with a
+    `Retry-After` header on the 11th upload inside a minute; two separate contexts share one counter (PGlite);
+    the AI budget's 429 carries the header.
+  - Follow-up noted, not in scope: the live-view cap is 5 per user **per server**, so it is approximate too — move
+    it onto the same counters if it ever matters.
 
 ## Later (not scheduled)
 
