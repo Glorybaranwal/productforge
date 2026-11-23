@@ -601,6 +601,9 @@ query included, so the production entry must be `https://<host>/auth/callback?**
 **Consequences:** Branch protection on `main` (require the CI checks) is set in GitHub by the repo owner. Preview data
 is throwaway. Turning production on means adding the Supabase variables to Vercel's Production environment, the
 production URL to Supabase's redirect URLs, and removing the `main: false` rule.
+**Follow-up (2026-11-22, PF-064):** pushes to `main` now deploy to production. Production runs Postgres-only
+(`DATA_DRIVER=postgres`) with Supabase sign-in. The variables and the order of steps are in `docs/DEPLOY.md`.
+The `main` ruleset above is already in place, and `vercel.json` no longer turns off `main` deploys.
 
 
 ### ADR-026 — Discovery data in Postgres (PF-070)

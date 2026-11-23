@@ -13,6 +13,21 @@ export function setLLMClient(client: LLMClient | undefined): void {
 }
 
 /**
+ * Runs `fn` with `client` in effect, then puts back whichever client was set before (even if `fn`
+ * throws). It swaps a process-wide client, so concurrent requests would see it: use it only in
+ * scripts and tests, never inside the Next server.
+ */
+export async function withLLMClient<T>(client: LLMClient, fn: () => Promise<T>): Promise<T> {
+  const previous = override;
+  override = client;
+  try {
+    return await fn();
+  } finally {
+    override = previous;
+  }
+}
+
+/**
  * OpenAI when OPENAI_API_KEY is set (server only), otherwise the deterministic demo engine
  * (ADR-011). AI_PROVIDER=demo forces the demo engine even with a key.
  */

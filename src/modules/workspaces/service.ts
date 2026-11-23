@@ -4,7 +4,6 @@ import { dataBackend, type Scope, unitOfWork } from "@/src/db/scope";
 import type { Session } from "@/src/lib/auth";
 import { AppError } from "@/src/lib/errors";
 import { newId, nowIso } from "@/src/lib/ids";
-import { getSession } from "@/src/lib/session";
 import { ttlCache } from "@/src/lib/ttl-cache";
 import { recordAudit } from "@/src/modules/audit/service";
 
@@ -69,6 +68,9 @@ export function forgetContext(userId: string): void {
  * per request (React `cache`), so a layout and its page share one lookup.
  */
 export const currentContext = cache(async (): Promise<WorkspaceContext> => {
+  // Imported here rather than at module scope: `src/lib/session` pulls in `next/headers`, which exists only
+  // inside a Next request. Scripts (`pnpm db:seed`) import `ensureWorkspace` from this file and must not load it.
+  const { getSession } = await import("@/src/lib/session");
   const session = await getSession();
   if (!session) throw new AppError("UNAUTHORIZED", "Please sign in");
   if (dataBackend() !== "postgres") return ensureWorkspace(session);

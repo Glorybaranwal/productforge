@@ -307,6 +307,20 @@ Module 1 Projects & workspace (PF-014, PF-015) · 2 Discovery & clarification (P
   - Run all fixtures; save `docs/EVAL_REPORT.md` with results against targets.
 - [ ] **PF-064 — Production deploy + demo seed** · Depends on: PF-016, PF-060
   - Seeded demo project (transaction monitoring dashboard).
+  - *2026-11-22:* seed done: `pnpm db:seed -- --email <user>` (needs `DATA_DRIVER=postgres`; `src/modules/projects/demo-seed.ts`, idempotent, demo engine).
+  - *2026-11-22:* config and runbook done (`docs/DEPLOY.md`; `vercel.json` no longer blocks `main` deploys). Left: the owner's steps in that guide, then the smoke test. The task stays open until then.
+  - *2026-11-22 (whole-branch review, 0 Critical / 4 Important):* fixed — the seed could not run at all under
+    `tsx` (top-level `await` in a CommonJS package forces ESM, and Next 16 ships no `exports` field, so the
+    `next/headers` import reached through `workspaces/service` could not resolve): the body now runs inside
+    `main()` and `getSession` is imported lazily, which takes `next/headers` out of the script's module graph
+    altogether. Also fixed: the rollback step pointed at a deployment that 500s, the smoke test was silent about
+    PF-017, step 7 under-stated `.env.local`, step 2 omitted `db:audit`, and the PRD approval on resume picked
+    the oldest version.
+  - *2026-11-22 (both open findings closed on the developer's Mac):* `corepack pnpm install --frozen-lockfile`
+    succeeded, so the hand-edited `tsx` lockfile entry is valid and CI will not block the pull request.
+    `corepack pnpm db:seed` with no arguments printed its usage line and stopped — static imports resolve
+    before `main()` runs, so that message proves the whole 115-file module graph loads under `tsx`, which is
+    the thing that could not be checked in Claude's VM (Linux arm64 against darwin-arm64 esbuild binaries).
   - Needs every module's data in Postgres first (the file store needs a writable disk). Then: Supabase variables in
     Vercel's Production environment, production callback in Supabase redirect URLs as `https://<host>/auth/callback?**` (set by hand, not the
     Vercel integration), remove
@@ -366,13 +380,16 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
     Checked on Mumbai in Chrome: settings + plan + move out/in (stories depending on a draft held back, as
     designed); CR-01 proposed → approved (FR-08 v2, approver stored as user id) → second approve 409 → review
     mark saved; Changes page renders from Postgres.
-- [~] **PF-075 — Postgres-only mode** · Depends on: PF-074
+- [x] **PF-075 — Postgres-only mode** · Depends on: PF-074
   - With `DATA_DRIVER=postgres` nothing touches the file store; demo mode keeps it.
   - Validate the `agent_run_id` foreign keys added `NOT VALID` in PF-071 (clear pre-PF-071 test data first).
   - **Done when:** the app runs with a read-only file system (unblocks PF-064).
   - *2026-11-20:* demo store refused when `DATA_DRIVER=postgres` (ADR-031); all Postgres-mode integration tests
-    pass with the guard on; migration 0009 clears pre-PF-071 run links and validates the run foreign keys. Left:
-    `db:migrate` on Mumbai and a click through every page.
+    pass with the guard on; migration 0009 clears pre-PF-071 run links and validates the run foreign keys.
+  - *2026-11-22:* checked on Mumbai with `DATA_DRIVER=postgres` after `db:migrate` + `db:check` passed: all 10 pages
+    and 12 read endpoints answer 200 with no errors; a new project → source → discovery run (demo engine) works, with
+    the live progress stream showing all 6 steps; `.data/productforge.json` unchanged (same mtime and size), so nothing
+    touched the file store. Requirement history (PF-056) shows FR-08 v1 → v2 with CR-01 on real data.
 
 ## Week 8 — Hardening (from the test plan, 2026-11-20)
 
@@ -420,6 +437,19 @@ signed-in user so RLS applies, with PGlite tests of the real services. Order fol
   - **Done when:** unit tests show the cap refuses the next call, holds across two eval files, and the report states
     usage and an early stop.
   - *2026-11-22:* built (`tests/ai-evals/token-cap.ts`, `global-setup.ts`); 11 unit tests, red-green checked.
+
+- [ ] **PF-085 — `db:seed` hardening and tests** · Module 1 (projects) · branch `m1-seed-tests` ·
+      Depends on: PF-064
+  - From the PF-064 whole-branch review. The seed is exercised only in store mode and `scripts/db-seed.ts` has no
+    test of its own, which is why a script that could not load passed every check.
+  - A test for `scripts/db-seed.ts` itself (argument parsing, the `DATA_DRIVER` refusal, the unknown-email
+    message) and one that imports it in a child process, so a module-resolution break fails a test rather than a
+    deploy.
+  - Tests for step-name wrapping and `AppError` code preservation when a step throws.
+  - Exclude `REJECTED` stories from the backlog need-check, so a project with rejected stories stops re-running it.
+  - Cover the resume branches that have no test: a PRD draft with no approval, and stories with no sprints.
+  - **Done when:** each item above is done or has a reason noted here, and one test fails if the seed script
+    stops loading.
 
 ## Later (not scheduled)
 
