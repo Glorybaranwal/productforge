@@ -40,3 +40,14 @@ export type ApiKeyWithSecret = Pick<
   ApiKey,
   "id" | "workspaceId" | "userId" | "prefix" | "scope" | "expiresAt" | "revokedAt"
 > & { secretHash: string };
+
+/**
+ * What a member sends to create a key. `expiresAt` is optional (the service defaults it to 90 days)
+ * and is checked against the table's window in the service, so a bad date is a 400, not a raw 23514.
+ */
+export const ApiKeyCreate = z.object({
+  name: z.string().trim().min(1, "Give the key a name").max(80),
+  scope: ApiKeyScope,
+  expiresAt: z.iso.datetime({ offset: true }).optional(),
+});
+export type ApiKeyCreate = z.infer<typeof ApiKeyCreate>;

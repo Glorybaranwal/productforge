@@ -22,10 +22,14 @@ export type WorkspaceMember = z.infer<typeof WorkspaceMember>;
 /**
  * Who is acting and in which workspace. Every service call takes one; every query is scoped by it.
  * `tx` is set inside a unit of work (PF-015): repository calls then share its transaction.
+ * `viaApiKey` is set only by `contextForApiKey` (PF-083): the request authenticated with an API key
+ * and not a person's sign-in, so approve and confirm services refuse it (CLAUDE.md §7.7, ADR-036).
+ * Nothing else may set it, and it survives `{ ...ctx, tx }`, so a unit of work keeps it.
  */
 export type WorkspaceContext = {
   session: Session;
   workspace: Workspace;
   role: Role;
   tx?: Tx;
+  viaApiKey?: true;
 };
