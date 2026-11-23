@@ -32,6 +32,7 @@ import { apiKeyRepository } from "@/src/modules/api-keys/repository";
 import { projectThroughGate2 } from "@/tests/helpers/backlog";
 import { readState, transact } from "@/src/db/store";
 import { DEMO_USER, type Session } from "@/src/lib/auth";
+import { requestSurface } from "@/src/lib/auth-gate";
 import { hashApiSecret } from "@/src/lib/api-key";
 import { actAs } from "@/src/lib/test-session";
 import { currentContext } from "@/src/modules/workspaces/service";
@@ -71,6 +72,8 @@ const QA: Session = {
 const SAME_401 = { error: { code: "UNAUTHORIZED", message: "Invalid API key" } };
 const NO_APPROVE = "API keys can't approve or confirm; a person must do this";
 
+/** Every `withKey` call simulates an API request; the surface comes from the proxy's own rule, never restated here. */
+const API_PATH = "/api/test";
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
 const body = (method: string, data?: unknown) =>
   new Request("http://localhost/api/x", {
@@ -92,7 +95,7 @@ async function withKey<T>(
 ) {
   request.headers = {
     authorization: header,
-    "x-pf-surface": method === "GET" ? "api-read" : "api-write",
+    "x-pf-surface": requestSurface(API_PATH, method),
   };
   try {
     return await fn();
@@ -541,7 +544,10 @@ describe("a key that must not work", () => {
 
   it("is only a key's context when the request really is an API request", async () => {
     const { plaintext } = await mintKey(DEV, { name: "dev writer", scope: "write" });
-    request.headers = { authorization: bearer(plaintext), "x-pf-surface": "api-write" };
+    request.headers = {
+      authorization: bearer(plaintext),
+      "x-pf-surface": requestSurface(API_PATH, "POST"),
+    };
     const ctx = await currentContext();
     expect(ctx.viaApiKey).toBe(true);
     expect(ctx.session.userId).toBe(DEV.userId);
